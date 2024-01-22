@@ -14,5 +14,33 @@ package miniJava.SyntacticAnalyzer;
 //   and then in a later assignment, we can peek at the Token's underlying text
 //   to differentiate between them.
 public enum TokenType {
-
+	Class,			// class
+	While,			// while
+	Return,			// return
+	If,				// if
+	Else,			// else
+	Negation,		// -
+	UnOp,			// !
+	BinOp,			// +, *, /, >, <, ==, <=, >=, !=, &&, ||
+	LParen,			// (
+	RParen,			// )
+	LSqBrack,		// [
+	RSqBrack,		// ]
+	LCurly,			// {
+	RCurly,			// }
+	Dot,			// .
+	Assignment,		// =
+	Visibility,		// public, private
+	Access,			// static
+	Void, 			// void
+	Null,			// null
+	Type,			// int, boolean
+	Reference,		// this
+	Semicolon,		// ;
+	BoolLiteral,	// true, false
+	IntLiteral,		// num
+	New,			// new
+	EOT,			// eot
+	Error,
+	Identifier
 }

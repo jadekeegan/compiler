@@ -15,12 +15,15 @@ public class ErrorReporter {
 	}
 	
 	public boolean hasErrors() {
-		// TODO: Check if errorQueue is non-empty
-		return false;
+		// Check if errorQueue is non-empty
+		return _errorQueue.size() > 0;
 	}
 	
 	public void outputErrors() {
-		// TODO: output all errors in the errorQueue
+		// output all errors in the errorQueue
+		for (String error : _errorQueue) {
+			System.out.println(error);
+		}
 	}
 	
 	public void reportError(String ...error) {
