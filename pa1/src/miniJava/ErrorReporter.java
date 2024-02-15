@@ -1,5 +1,7 @@
 package miniJava;
 
+import miniJava.SyntacticAnalyzer.SourcePosition;
+
 import java.util.List;
 import java.util.ArrayList;
 
@@ -16,7 +18,7 @@ public class ErrorReporter {
 	
 	public boolean hasErrors() {
 		// Check if errorQueue is non-empty
-		return _errorQueue.size() > 0;
+		return !_errorQueue.isEmpty();
 	}
 	
 	public void outputErrors() {
@@ -26,11 +28,13 @@ public class ErrorReporter {
 		}
 	}
 	
-	public void reportError(String ...error) {
+	public void reportError(SourcePosition position, String ...error) {
 		StringBuilder sb = new StringBuilder();
 		
 		for(String s : error)
 			sb.append(s);
+
+		sb.append(" on ").append(position.toString());
 		
 		_errorQueue.add(sb.toString());
 	}

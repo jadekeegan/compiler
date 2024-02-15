@@ -10,6 +10,8 @@ public class Scanner {
 	private StringBuilder _currentText;
 	private char _currentChar;
 	private boolean eot = false;
+	private int lineNum = 1;
+	private int columnNum = 0;
 	
 	public Scanner( InputStream in, ErrorReporter errors ) {
 		this._in = in;
@@ -18,25 +20,26 @@ public class Scanner {
 		
 		nextChar();
 	}
-	
+
 	public Token scan() {
-		// This function should check the current char to determine what the token could be.
+	// This function should check the current char to determine what the token could be.
 
 		// Consider what happens if the current char is whitespace
-		while (this.eot != false && this._currentChar == ' ') {
-			this.skipIt();
-		}
-			
-		// TODO: Consider what happens if there is a comment (// or /* */)
-		// Check current character and previous character
-		if (this._currentChar == '/') {
+		this.skipWhitespace();
+
+		// Consider what happens if there is a comment (// or /* */)
+		while (this._currentChar == '/') {
 			this.nextChar();
 			if (this._currentChar == '/') {
 				this.skipInLineComment();
+				this.skipWhitespace();
 			} else if (this._currentChar == '*') {
+				this.skipIt();
 				this.skipBlockComment();
+				this.skipWhitespace();
 			} else {
 				this._currentChar = '/';
+				this.takeIt();
 				return makeToken(TokenType.BinOp); // otherwise it is division
 			}
 		}
@@ -51,6 +54,16 @@ public class Scanner {
 		//  create the token via makeToken(TokenType.IntegerLiteral) and return it.
 		TokenType tokType = this.scanToken();
 		return this.makeToken(tokType);
+	}
+
+	private void skipWhitespace() {
+		while (!this.eot && (this._currentChar == ' '
+				|| this._currentChar == 9
+				|| this._currentChar == 10
+				|| this._currentChar == 11
+				|| this._currentChar == 13)) {
+			this.skipIt();
+		}
 	}
 	
 	private TokenType scanToken() {
@@ -79,6 +92,7 @@ public class Scanner {
 			}
 			return TokenType.Assignment;
 		case '+':	case '*':
+			this.takeIt();
 			return TokenType.BinOp;
 		case '>':	
 			this.takeIt();
@@ -95,14 +109,20 @@ public class Scanner {
 		case '&':
 			this.takeIt();
 			if (this._currentChar != '&') {
-				this._errors.reportError("Unrecognized character '&' in input");
+				this._errors.reportError(new SourcePosition(lineNum, columnNum),"Unrecognized character '" + this._currentChar + "' in input");
+				this.takeIt();
+				return TokenType.Error;
 			}
+			this.takeIt();
 			return TokenType.BinOp;
 		case '|':
 			this.takeIt();
 			if (this._currentChar != '|') {
-				this._errors.reportError("Unrecognized character '|' in input");
+				this._errors.reportError(new SourcePosition(lineNum, columnNum), "Unrecognized character '" + this._currentChar + "' in input");
+				this.takeIt();
+				return TokenType.Error;
 			}
+			this.takeIt();
 			return TokenType.BinOp;
 		case '(':
 			this.takeIt();
@@ -112,6 +132,11 @@ public class Scanner {
 			return TokenType.RParen;
 		case '[':
 			this.takeIt();
+			this.skipWhitespace();
+			if (this._currentChar == ']') {
+				this.takeIt();
+				return TokenType.Brackets;
+			}
 			return TokenType.LSqBrack;
 		case ']':
 			this.takeIt();
@@ -125,6 +150,9 @@ public class Scanner {
 		case '.':
 			this.takeIt();
 			return TokenType.Dot;
+		case ',':
+			this.takeIt();
+			return TokenType.Comma;
 		case ';':
 			this.takeIt();
 			return TokenType.Semicolon;
@@ -135,20 +163,21 @@ public class Scanner {
 			}
 			return TokenType.IntLiteral;
 		default:
-			if (this.isValidIdentifierChar()) {
+			if (this.isAlpha()) {
+				this.takeIt();
 				while (this.isValidIdentifierChar()) {
 					this.takeIt();
-					
-					TokenType toktype = this.currentTokType();
-					
-					if (toktype != TokenType.Identifier) {
-						return toktype;
+
+					TokenType tokType = this.currentTokType();
+
+					if (tokType != TokenType.Identifier && !this.isValidIdentifierChar()) {
+						return tokType;
 					}
 				}
-				
 				return TokenType.Identifier;
 			} else {
-				this._errors.reportError("Unrecognized character '" + this._currentChar + "' in input");
+				this._errors.reportError(new SourcePosition(lineNum, columnNum), "Unexpected character '" + this._currentChar + "' in input");
+				this.takeIt();
 				return TokenType.Error;
 			}
 		}
@@ -163,61 +192,52 @@ public class Scanner {
 	}
 	
 	private boolean isValidIdentifierChar() {
-		return (this._currentChar == '_' || this._currentChar == '$' || this.isDigit() || this.isAlpha());
+		return (this._currentChar == '_' || this.isDigit() || this.isAlpha());
 	}
 
 	private void skipInLineComment() {
-		while (this._currentChar != 10) { // 10 = \n
-			this.skipIt();									
-		}
-	}
-	
-	private void skipBlockComment() {
-		while (!this.eot) {
-			if (this._currentChar == '*') {
-				this.nextChar();
-				if (this._currentChar == '/') {
-					return;
-				}
-			}
+		while (this._currentChar != '\n' && this._currentChar != '\r' && !this.eot) {
 			this.skipIt();
 		}
 	}
 	
+	private void skipBlockComment() {
+		boolean terminated = false;
+		while (!this.eot) {
+			if (this._currentChar == '*') {
+				this.skipIt();
+				if (this._currentChar == '/') {
+					this.skipIt();
+					terminated = true;
+					break;
+				}
+			} else {
+				this.skipIt();
+			}
+		}
+		if (!terminated) {
+			this._errors.reportError(new SourcePosition(lineNum, columnNum), "Unterminated block comment");
+		}
+	}
+	
 	private TokenType currentTokType() {
-		switch (this._currentText.toString()) {
-			case "class":
-				return TokenType.Class;
-			case "while":
-				return TokenType.While;
-			case "return":
-				return TokenType.Return;
-			case "if":
-				return TokenType.If;
-			case "else":
-				return TokenType.Else;
-			case "public":
-			case "private":
-				return TokenType.Visibility;
-			case "static":
-				return TokenType.Access;
-			case "void":
-				return TokenType.Void;
-			case "null":
-				return TokenType.Null;
-			case "int":
-			case "boolean":
-				return TokenType.Type;
-			case "this":
-				return TokenType.Reference;
-			case "true":
-			case "false":
-				return TokenType.BoolLiteral;
-			case "new":
-				return TokenType.New;
-			default:
-				return TokenType.Identifier;
-		}	
+        switch (this._currentText.toString()) {
+			case "class": return TokenType.Class;
+			case "while": return TokenType.While;
+			case "return": return TokenType.Return;
+			case "if": return TokenType.If;
+			case "else": return TokenType.Else;
+			case "public": case "private": return TokenType.Visibility;
+            case "static": return TokenType.Access;
+            case "void": return TokenType.Void;
+            case "null": return TokenType.Null;
+            case "int": return TokenType.IntType;
+            case "boolean": return TokenType.BoolType;
+            case "this": return TokenType.This;
+			case "true": case "false": return TokenType.BoolLiteral;
+            case "new": return TokenType.New;
+			default: return TokenType.Identifier;
+        }
 	}
 	
 	private void takeIt() {
@@ -233,6 +253,13 @@ public class Scanner {
 		try {
 			int c = _in.read();
 			_currentChar = (char)c;
+
+			columnNum += 1;
+
+			if (this._currentChar == 10) {
+				this.lineNum += 1;
+				this.columnNum = 0;
+			}
 			
 			// What happens if c == -1?
 			if (c == -1) {
@@ -246,14 +273,14 @@ public class Scanner {
 			
 		} catch( IOException e ) {
 			// Report an error here
-			this._errors.reportError(e.getMessage());
+			this._errors.reportError(new SourcePosition(lineNum, columnNum), e.getMessage());
 		}
 	}
 	
-	private Token makeToken( TokenType toktype ) {
+	private Token makeToken( TokenType tokType ) {
 		// return a new Token with the appropriate type and text
 		//  contained in 
-		Token token = new Token(toktype, this._currentText.toString());
+		Token token = new Token(tokType, this._currentText.toString(), new SourcePosition(lineNum, columnNum));
 		this._currentText.setLength(0); // reset current text
 		return token;
 	}
