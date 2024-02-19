@@ -1,6 +1,10 @@
 package miniJava.SyntacticAnalyzer;
 
 import miniJava.ErrorReporter;
+import miniJava.AbstractSyntaxTrees.*;
+import miniJava.AbstractSyntaxTrees.Package;
+
+import javax.xml.transform.Source;
 
 public class Parser {
 	private Scanner _scanner;
@@ -18,26 +22,30 @@ public class Parser {
 	}
 
 	// (Package)
-	public void parse() {
+	public Package parse() {
 		try {
 			// The first thing we need to parse is the Program symbol
-			parseProgram();
+			return parseProgram();
 		} catch( SyntaxError e ) { }
+		return null;
 	}
 	
 	// Program ::= (ClassDeclaration)* eot
-	private void parseProgram() throws SyntaxError {
+	private Package parseProgram() throws SyntaxError {
 		// Keep parsing class declarations until eot
+		ClassDeclList classDeclList = new ClassDeclList();
 		while (this._currentToken.getTokenType() != TokenType.EOT) {
-			parseClassDeclaration();
+			classDeclList.add(parseClassDeclaration());
 		}
 		this.accept(TokenType.EOT);
+		return new Package(classDeclList, this._currentToken.getTokenPosition());
 	}
 	
 	// ClassDeclaration ::= class identifier { (FieldDeclaration|MethodDeclaration)* } (ClassDecl)
-	private void parseClassDeclaration() throws SyntaxError {
+	private ClassDecl parseClassDeclaration() throws SyntaxError {
 		// Take in a "class" token (check by the TokenType)
 		//  What should be done if the first token isn't "class"?
+		String cn = this._currentToken.getTokenText();
 		this.accept(TokenType.Class);
 		
 		// Take in an identifier token
@@ -47,52 +55,71 @@ public class Parser {
 		this.accept(TokenType.LCurly);
 		
 		// Parse either a FieldDeclaration or MethodDeclaration
+		FieldDeclList fieldDeclList = new FieldDeclList();
+		MethodDeclList methodDeclList = new MethodDeclList();
 		while (this._currentToken.getTokenType() != TokenType.RCurly) {
+			boolean isPrivate = false;
+			boolean isStatic = false;
+
 			if (this._currentToken.getTokenType() == TokenType.Visibility) {
+				if (this._currentToken.getTokenText().equals("private")) {
+					isPrivate = true;
+				}
 				this.accept(TokenType.Visibility);	// Visibility
 			}
 
 			if (this._currentToken.getTokenType() == TokenType.Access) {
+				isStatic = true;
 				this.accept(TokenType.Access);		// Access
 			}
 
 			// Take in a void or type
 			if (this._currentToken.getTokenType() == TokenType.Void) { // Void
 				this.accept(TokenType.Void); 		// Void
+
+				String name = this._currentToken.getTokenText();
 				this.accept(TokenType.Identifier); 	// Identifier
 
-				this.parseMethodDeclaration();
+				FieldDecl field = this.parseFieldDeclaration(isPrivate, isStatic,
+						new BaseType(TypeKind.VOID, this._currentToken.getTokenPosition()), name);
+				methodDeclList.add(this.parseMethodDeclaration(field));
 			} else {
-				this.parseType();					// Type
+				TypeDenoter type = this.parseType();					// Type
+
+				String name = this._currentToken.getTokenText();
 				this.accept(TokenType.Identifier);	// Identifier
 
 				// Take in a ';' for field declaration or continue if method declaration
+				FieldDecl field = this.parseFieldDeclaration(isPrivate, isStatic, type, name);
 				if (this._currentToken.getTokenType() == TokenType.Semicolon) {
-					this.parseFieldDeclaration();
+					fieldDeclList.add(field);
 					break; // end of field declaration
 				}
 
-				this.parseMethodDeclaration();
+				methodDeclList.add(this.parseMethodDeclaration(field));
 			}
 		}
 		
 		// Take in a }
 		this.accept(TokenType.RCurly);
+		return new ClassDecl(cn, fieldDeclList, methodDeclList, this._currentToken.getTokenPosition());
 	}
 	
 	// FieldDeclaration ::= Visibility Access Type id; (FieldDecl)
-	private void parseFieldDeclaration() {
+	private FieldDecl parseFieldDeclaration(boolean isPrivate, boolean isStatic, TypeDenoter type, String name) {
 		this.accept(TokenType.Semicolon);
+		return new FieldDecl(isPrivate, isStatic, type, name, this._currentToken.getTokenPosition());
 	}
 
 	// MethodDeclaration ::= Visibility Access (Type|void) id (ParameterList?) { Statement* } (MethodDecl)
-	private void parseMethodDeclaration() {
+	private MethodDecl parseMethodDeclaration(FieldDecl field) {
 		// Take in a (
 		this.accept(TokenType.LParen);
 
 		// Parse an optional Parameter List
+		ParameterDeclList parameterDeclList = new ParameterDeclList();
 		if (this._currentToken.getTokenType() != TokenType.RParen) {
-			this.parseParameterList();
+			parameterDeclList = this.parseParameterList();
 		}
 
 		// Take in a )
@@ -102,110 +129,183 @@ public class Parser {
 		this.accept(TokenType.LCurly);
 
 		// Parse a Statement
+		StatementList statementList = new StatementList();
 		while (this._currentToken.getTokenType() != TokenType.RCurly) {
-			this.parseStatement();
+			statementList.add(this.parseStatement());
 		}
 
 		// Take in a }
 		this.accept(TokenType.RCurly);
-	}
-	
-	// ParameterList ::= Type id (, Type id)* (ParameterDeclList)
-	private void parseParameterList() {
-		this.parseType();
-		this.accept(TokenType.Identifier);
-		
-		while (this._currentToken.getTokenType() != TokenType.RParen) {
-			this.accept(TokenType.Comma);
-			this.parseType();
-			this.accept(TokenType.Identifier);
-		}
+		return new MethodDecl(field, parameterDeclList, statementList, this._currentToken.getTokenPosition());
 	}
 
 	// Type ::= int | boolean | id | (int|id)[] (TypeDenoter)
-	private void parseType() {
+	private TypeDenoter parseType() {
 		// Take in a Type
+		SourcePosition position = this._currentToken.getTokenPosition();
 		switch (this._currentToken.getTokenType()) {
-		case IntType:
-		case Identifier:
-			// int | int[] | id | id[]
+		case IntType: // int | int[]
 			this.accept(this._currentToken.getTokenType());
 			if (this._currentToken.getTokenType() == TokenType.Brackets) {
 				this.accept(TokenType.Brackets);
 			}
-			break;
+			return new BaseType(TypeKind.INT, position);
+		case Identifier:
+			// id | id[]
+			Token id = this._currentToken;
+			this.accept(this._currentToken.getTokenType());
+			if (this._currentToken.getTokenType() == TokenType.Brackets) {
+				this.accept(TokenType.Brackets);
+			}
+			return new ClassType(new Identifier(id), position);
 		case BoolType:
 			// boolean
 			this.accept(TokenType.BoolType);
-			break;
+			return new BaseType(TypeKind.BOOLEAN, position);
 		default:
 		}
+		return null;
 	}
-	
+
+	// ParameterList ::= Type id (, Type id)* (ParameterDeclList)
+	private ParameterDeclList parseParameterList() {
+		this.parseType();
+		this.accept(TokenType.Identifier);
+
+		ParameterDeclList parameterDeclList = new ParameterDeclList();
+		while (this._currentToken.getTokenType() != TokenType.RParen) {
+			this.accept(TokenType.Comma);
+			TypeDenoter type = this.parseType();
+			String cn = this._currentToken.getTokenText();
+			this.accept(TokenType.Identifier);
+			parameterDeclList.add(new ParameterDecl(type, cn, this._currentToken.getTokenPosition()));
+		}
+		return parameterDeclList;
+	}
+
+	// ( ArgumentList ::= Expression (, Expression)* ) (ExprList)
+	private ExprList parseArgumentList() {
+		this.accept(TokenType.LParen);
+
+		ExprList exprList = new ExprList();
+		if (this._currentToken.getTokenType() != TokenType.RParen) {
+			this.parseExpression();
+			while (this._currentToken.getTokenType() == TokenType.Comma) {
+				this.accept(TokenType.Comma);
+				exprList.add(this.parseExpression());
+			}
+		}
+		this.accept(TokenType.RParen);
+		return exprList;
+	}
+
+	// Reference ::= id | this | Reference.id (Reference)
+	private Reference parseReference() {
+		// this | id
+		Reference reference = null;
+		switch (this._currentToken.getTokenType()) {
+			case Identifier: 		// IdRef
+				Token id = this._currentToken;
+				this.accept(this._currentToken.getTokenType());
+				reference = new IdRef(new Identifier(id), id.getTokenPosition());
+				break;
+			case This:				// ThisRef
+				this.accept(this._currentToken.getTokenType());
+				reference = new ThisRef(this._currentToken.getTokenPosition());
+				break;
+			default:
+		}
+
+		// Reference.id				// QualRef
+		while (this._currentToken.getTokenType() == TokenType.Dot) {
+			this.accept(TokenType.Dot);
+			Token id = this._currentToken;
+			this.accept(TokenType.Identifier);
+			reference = new QualRef(reference, new Identifier(id), id.getTokenPosition());
+		}
+		return reference;
+	}
+
 	// Statement ::= {Statement*} | Type id = Expression; | Reference = Expression; | Reference[Expression] = Expression; |
 	// Reference(ArgumentList?); | return Expression?; | if (Expression) Statement (else Statement)? |
 	// while (Expression) Statement
-	private void parseStatement() {
+	private Statement parseStatement() {
+		TypeDenoter type;
+		Expression expression, expression1, expression2;
+		VarDecl varDecl;
+		String name;
+		Reference reference;
+		Statement statement, statement1;
 		switch (this._currentToken.getTokenType()) {
 		case LCurly:
 			// { Statement* } (BlockStmt)
 			this.accept(TokenType.LCurly);
+			StatementList statementList = new StatementList();
 			while (this._currentToken.getTokenType() != TokenType.RCurly) {
-				parseStatement();
+				statementList.add(parseStatement());
 			}
 			this.accept(TokenType.RCurly);
-			break;
+			return new BlockStmt(statementList, this._currentToken.getTokenPosition());
 		case IntType: case BoolType:
 			// Type id = Expression (VarDeclStmt)
-			this.parseType();
+			type = this.parseType();
+			name = this._currentToken.getTokenText();
 			this.accept(TokenType.Identifier);
+			varDecl = new VarDecl(type, name, this._currentToken.getTokenPosition());
 			this.accept(TokenType.Assignment);
-			this.parseExpression();
+			expression = this.parseExpression();
 			this.accept(TokenType.Semicolon);
-			break;
+			return new VarDeclStmt(varDecl, expression, this._currentToken.getTokenPosition());
 		case Identifier:
 			// Type vs. Reference ID
+			Token id = this._currentToken;
 			this.accept(TokenType.Identifier);
+			type = new ClassType(new Identifier(id), id.getTokenPosition());
+			reference = new IdRef(new Identifier(id), id.getTokenPosition());
 			switch (this._currentToken.getTokenType()) {
 				case Identifier:
 					// Type id = Expression; (VarDeclStmt)
+					name = this._currentToken.getTokenText();
 					this.accept(TokenType.Identifier);
+					varDecl = new VarDecl(type, name, this._currentToken.getTokenPosition());
 					this.accept(TokenType.Assignment);
-					this.parseExpression();
+					expression = this.parseExpression();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new VarDeclStmt(varDecl, expression, this._currentToken.getTokenPosition());
 				case Brackets:
 					// Type id = Expression; (VarDeclStmt)
 					// id[] = Expression;
 					this.accept(TokenType.Brackets);
+					name = this._currentToken.getTokenText();
 					this.accept(TokenType.Identifier);
+					varDecl = new VarDecl(type, name, this._currentToken.getTokenPosition());
 					this.accept(TokenType.Assignment);
-					this.parseExpression();
+					expression = this.parseExpression();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new VarDeclStmt(varDecl, expression, this._currentToken.getTokenPosition());
 				case Dot: // Reference.id (QualRef)
-					this.parseReference();
+					reference = this.parseReference();
 					switch (this._currentToken.getTokenType()) {
 						case LParen:
 							// Reference( ArgumentList?); (CallStmt)
-							this.parseArgList();
+							ExprList expressionList = this.parseArgumentList();
 							this.accept(TokenType.Semicolon);
-							break;
+							return new CallStmt(reference, expressionList, this._currentToken.getTokenPosition());
 						case LSqBrack:
 							// Reference[Expression] = Expression; (IxAssignStmt)
 							this.accept(TokenType.LSqBrack);
-							this.parseExpression();
+							expression1 = this.parseExpression();
 							this.accept(TokenType.RSqBrack);
 							this.accept(TokenType.Assignment);
-							this.parseExpression();
+							expression2 = this.parseExpression();
 							this.accept(TokenType.Semicolon);
-							break;
+							return new IxAssignStmt(reference, expression1, expression2, this._currentToken.getTokenPosition());
 						case Assignment:
 							// Reference = Expression; (Assign Stmt)
 							this.accept(TokenType.Assignment);
-							this.parseExpression();
+							expression = this.parseExpression();
 							this.accept(TokenType.Semicolon);
-							break;
+							return new AssignStmt(reference, expression, this._currentToken.getTokenPosition());
 						default:
 							break;
 					}
@@ -213,143 +313,143 @@ public class Parser {
 				case LSqBrack:
 					// Reference[Expression] = Expression; (IxAssignStmt)
 					this.accept(TokenType.LSqBrack);
-					this.parseExpression();
+					expression1 = this.parseExpression();
 					this.accept(TokenType.RSqBrack);
 					this.accept(TokenType.Assignment);
-					this.parseExpression();
+					expression2 = this.parseExpression();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new IxAssignStmt(reference, expression1, expression2, this._currentToken.getTokenPosition());
 				case Assignment:
 					// Reference = Expression; (AssignStmt)
 					this.accept(TokenType.Assignment);
-					this.parseExpression();
+					expression = this.parseExpression();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new AssignStmt(reference, expression, this._currentToken.getTokenPosition());
 				case LParen:
 					// Reference(ArgumentList?) (CallStmt)
-					this.parseArgList();
+					ExprList exprList = this.parseArgumentList();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new CallStmt(reference, exprList, this._currentToken.getTokenPosition());
 				default:
 			}
 			break;
 		case This: // this (ThisRef)
-			this.parseReference();
+			reference = this.parseReference();
 			switch (this._currentToken.getTokenType()) {
 				case LSqBrack:
 					// Reference[Expression] = Expression; (IxAssignStmt)
 					this.accept(TokenType.LSqBrack);
-					this.parseExpression();
+					expression1 = this.parseExpression();
 					this.accept(TokenType.RSqBrack);
 					this.accept(TokenType.Assignment);
-					this.parseExpression();
+					expression2 = this.parseExpression();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new IxAssignStmt(reference, expression1, expression2, this._currentToken.getTokenPosition());
 				case Assignment:
 					// Reference = Expression; (AssignStmt)
-					// ThisRef =
 					this.accept(TokenType.Assignment);
-					this.parseExpression();
+					expression = this.parseExpression();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new AssignStmt(reference, expression, this._currentToken.getTokenPosition());
 				case LParen:
 					// Reference(ArgumentList?) (CallStmt)
-					this.parseArgList();
+					ExprList exprList = this.parseArgumentList();
 					this.accept(TokenType.Semicolon);
-					break;
+					return new CallStmt(reference, exprList, this._currentToken.getTokenPosition());
 				default:
 			}
 			break;
 		case Return:
 			// return (Expression)?; (ReturnStmt)
 			this.accept(TokenType.Return);
+			expression = null;
 			if (this._currentToken.getTokenType() != TokenType.Semicolon) {
-				this.parseExpression();
+				expression = this.parseExpression();
 			}
 			this.accept(TokenType.Semicolon);
-			break;
+			return new ReturnStmt(expression, this._currentToken.getTokenPosition());
 		case If:
 			// if (Expression) Statement (else Statement)? (IfStmt)
 			this.accept(TokenType.If);
 			this.accept(TokenType.LParen);
-			this.parseExpression();
+			expression = this.parseExpression();
 			this.accept(TokenType.RParen);
-			this.parseStatement();
+			statement = this.parseStatement();
 			if (this._currentToken.getTokenType() == TokenType.Else) {
 				this.accept(TokenType.Else);
-				this.parseStatement();
+				statement1 = this.parseStatement();
+				return new IfStmt(expression, statement, statement1, this._currentToken.getTokenPosition());
 			}
-			break;
+			return new IfStmt(expression, statement, this._currentToken.getTokenPosition());
 		case While:
 			// while (Expression) Statement (WhileStmt)
 			this.accept(TokenType.While);
-			this.parseExpression();
-			this.parseStatement();
-			break;
+			expression = this.parseExpression();
+			statement = this.parseStatement();
+			return new WhileStmt(expression, statement, this._currentToken.getTokenPosition());
 		default:
 			this.reject(this._currentToken.getTokenType());
 		}
-		
-	}
-
-	// ( ArgumentList ::= Expression (, Expression)* ) (ExprList)
-	private void parseArgList() {
-		this.accept(TokenType.LParen);
-		if (this._currentToken.getTokenType() != TokenType.RParen) {
-			this.parseExpression();
-			while (this._currentToken.getTokenType() == TokenType.Comma) {
-				this.accept(TokenType.Comma);
-				this.parseExpression();
-			}
-		}
-		this.accept(TokenType.RParen);
+		return null;
 	}
 	
 	// Expression ::= Reference | Reference[Expression] | Reference (ArgumentList?); | unop Expression 
 	// | Expression binop Expression | ( Expression ) | num | true | false 
 	// | new( id() | int[Expression] | id[Expression] ) 
-	private void parseExpression() {
+	private Expression parseExpression() {
+		Expression expression = null;
+		Reference reference;
+		Operator operator;
+		Terminal terminal;
+		Token id;
+		TypeDenoter arrayType;
 		switch (this._currentToken.getTokenType()) {
 		case Negation: // unop Expression (UnaryExpr)
+			operator = new Operator(this._currentToken);
 			this.accept(TokenType.Negation);
-			this.parseExpression();
+			expression = new UnaryExpr(operator, this.parseExpression(), this._currentToken.getTokenPosition());
 			break;
 		case Identifier:
 		case This:
 			// Reference
-			this.parseReference();
+			reference = this.parseReference();
 			switch (this._currentToken.getTokenType()) {
 			case LSqBrack:
 				// Reference[Expression] (IxExpr)
 				this.accept(TokenType.LSqBrack);
-				this.parseExpression();
+				expression = new IxExpr(reference, this.parseExpression(), this._currentToken.getTokenPosition());
 				this.accept(TokenType.RSqBrack);
 				break;
 			case LParen:
 				// Reference(ArgumentList?) (CallExpr)
-				this.parseArgList();
+				expression = new CallExpr(reference, this.parseArgumentList(), this._currentToken.getTokenPosition());
 				break;
 			default:
 			}
 			break;
 		case UnOp:
 			// unop Expression (UnaryExpr)
+			operator = new Operator(this._currentToken);
 			this.accept(TokenType.UnOp);
-			this.parseExpression();
+			expression = new UnaryExpr(operator, this.parseExpression(), this._currentToken.getTokenPosition());
 			break;
 		case LParen:
 			// ( Expression ) (Expression)
 			this.accept(TokenType.LParen);
-			this.parseExpression();
+			expression = this.parseExpression();
 			this.accept(TokenType.RParen);
 			break;
 		case IntLiteral:
 			// num (LiteralExpr, IntLiteral)
+			terminal = new IntLiteral(this._currentToken);
 			this.accept(TokenType.IntLiteral);
+			expression = new LiteralExpr(terminal, this._currentToken.getTokenPosition());
 			break;
 		case BoolLiteral:
 			// true | false (LiteralExpr, BooleanLiteral)
+			terminal = new BooleanLiteral(this._currentToken);
 			this.accept(TokenType.BoolLiteral);
+			expression = new LiteralExpr(terminal, this._currentToken.getTokenPosition());
 			break;
 		case New:
 			// new (id() | int[Expression] | id[Expression])
@@ -357,23 +457,28 @@ public class Parser {
 			switch (this._currentToken.getTokenType()) {
 			case Identifier:
 				// id
+				id = this._currentToken;
 				this.accept(TokenType.Identifier);
+				ClassType type = new ClassType(new Identifier(id), id.getTokenPosition());
 				if (this._currentToken.getTokenType() == TokenType.LParen) {
 					// new id() (NewObjectExpr)
 					this.accept(TokenType.LParen);
 					this.accept(TokenType.RParen);
+					expression = new NewObjectExpr(type, this._currentToken.getTokenPosition());
 				} else if (this._currentToken.getTokenType() == TokenType.LSqBrack) {
 					// new id[Expression] (NewArrayExpr)
 					this.accept(TokenType.LSqBrack);
-					this.parseExpression();
+					arrayType = new ArrayType(type, this._currentToken.getTokenPosition());
+					expression = new NewArrayExpr(arrayType, this.parseExpression(), this._currentToken.getTokenPosition());
 					this.accept(TokenType.RSqBrack);
 				}
 				break;
 			case IntType:
 				// new int[Expression] (NewArrayExpr)
 				this.accept(TokenType.IntType);
+				arrayType = new ArrayType(new BaseType(TypeKind.INT, this._currentToken.getTokenPosition()),this._currentToken.getTokenPosition());
 				this.accept(TokenType.LSqBrack);
-				this.parseExpression();
+				expression = new NewArrayExpr(arrayType, this.parseExpression(), this._currentToken.getTokenPosition());
 				this.accept(TokenType.RSqBrack);
 				break;
 			default:
@@ -386,27 +491,13 @@ public class Parser {
 		// Ensure expression parsed before Expression binop Expression
 		// Expression binop Expression (BinaryExpr)
 		if (this._currentToken.getTokenType() == TokenType.BinOp || this._currentToken.getTokenType() == TokenType.Negation) {
+			operator = new Operator(this._currentToken);
 			this.accept(this._currentToken.getTokenType());
-			this.parseExpression();
-		}
-	}
-	
-	// Reference ::= id | this | Reference.id
-	private void parseReference() {
-		// this | id
-		switch (this._currentToken.getTokenType()) {
-		case Identifier: 		// IdRef
-		case This:				// ThisRef
-			this.accept(this._currentToken.getTokenType());
-		default:
+			expression = new BinaryExpr(operator, expression, this.parseExpression(), this._currentToken.getTokenPosition());
 		}
 
-		// Reference.id			// QualRef
-		while (this._currentToken.getTokenType() == TokenType.Dot) {
-			this.accept(TokenType.Dot);
-			this.accept(TokenType.Identifier);
-		}
-	}	
+		return expression;
+	}
 	
 	// This method will accept the token and retrieve the next token.
 	//  Can be useful if you want to error check and accept all-in-one.
