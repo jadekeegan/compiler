@@ -477,7 +477,7 @@ public class Parser {
 		if (this._currentToken.getTokenType() == TokenType.UnOp || this._currentToken.getTokenType() == TokenType.Negation) {
 			Operator op = new Operator(this._currentToken);
 			this.accept(this._currentToken.getTokenType());
-			return new UnaryExpr(op, this.parseParentheses(), this._currentToken.getTokenPosition());
+			return new UnaryExpr(op, this.parseUnary(), this._currentToken.getTokenPosition());
 		}
 		return this.parseParentheses();
 	}
@@ -506,9 +506,11 @@ public class Parser {
 					this.accept(TokenType.LSqBrack);
 					e1 = new IxExpr(reference, this.parseDisjunction(), this._currentToken.getTokenPosition());
 					this.accept(TokenType.RSqBrack);
+					break;
 				case LParen:
 					// Reference(ArgumentList?) (CallExpr)
 					e1 = new CallExpr(reference, this.parseArgumentList(), this._currentToken.getTokenPosition());
+					break;
 				default:
 			}
 			return e1;
