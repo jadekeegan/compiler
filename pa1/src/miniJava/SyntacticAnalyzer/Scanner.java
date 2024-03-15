@@ -29,7 +29,7 @@ public class Scanner {
 
 		// Consider what happens if there is a comment (// or /* */)
 		while (this._currentChar == '/') {
-			this.nextChar();
+			this.takeIt();
 			if (this._currentChar == '/') {
 				this.skipInLineComment();
 				this.skipWhitespace();
@@ -38,8 +38,6 @@ public class Scanner {
 				this.skipBlockComment();
 				this.skipWhitespace();
 			} else {
-				this._currentChar = '/';
-				this.takeIt();
 				return makeToken(TokenType.BinOp); // otherwise it is division
 			}
 		}
@@ -199,6 +197,7 @@ public class Scanner {
 		while (this._currentChar != '\n' && this._currentChar != '\r' && !this.eot) {
 			this.skipIt();
 		}
+		this._currentText.setLength(0);
 	}
 	
 	private void skipBlockComment() {
@@ -215,6 +214,7 @@ public class Scanner {
 				this.skipIt();
 			}
 		}
+		this._currentText.setLength(0);
 		if (!terminated) {
 			this._errors.reportError(new SourcePosition(lineNum, columnNum), "Unterminated block comment");
 		}
