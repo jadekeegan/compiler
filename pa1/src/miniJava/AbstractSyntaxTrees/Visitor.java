@@ -50,10 +50,12 @@ public interface Visitor<ArgType,ResultType> {
     public ResultType visitThisRef(ThisRef ref, ArgType arg);
     public ResultType visitIdRef(IdRef ref, ArgType arg);
     public ResultType visitQRef(QualRef ref, ArgType arg);
+  public ResultType visitNullRef(NullRef nullRef, ArgType arg);
 
   // Terminals
     public ResultType visitIdentifier(Identifier id, ArgType arg);
     public ResultType visitOperator(Operator op, ArgType arg);
     public ResultType visitIntLiteral(IntLiteral num, ArgType arg);
     public ResultType visitBooleanLiteral(BooleanLiteral bool, ArgType arg);
+    public ResultType visitNullLiteral(NullLiteral nullLiteral, ArgType arg);
 }
