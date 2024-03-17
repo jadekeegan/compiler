@@ -1,0 +1,9 @@
+AST Changes:
+- Add NullLiteral class and updated Visitor interface and ASTDisplay class accordingly.
+- Add NullRef class and updated Visitor interface and ASTDisplay class accordingly.
+- Add IdentificationError class for IDErrors.
+- Add IDTable class to implement the HashMap of Strings and Declarations and its functionality.
+- Add ScopedIdentification class to implement the Stack of IDTables and its functionality.
+- Add Declaration field to Identifier class and implement corresponding setContext() method.
+- Add and implement Identification class which implements the Visitor interface to traverse for identification.
+- Add and implement TypeChecking class which implements the Visitor interface to traverse for type checking.

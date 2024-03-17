@@ -27,6 +27,15 @@ public class ErrorReporter {
 			System.out.println(error);
 		}
 	}
+
+	public void reportError(String ...error) {
+		StringBuilder sb = new StringBuilder();
+
+		for(String s : error)
+			sb.append(s);
+
+		_errorQueue.add(sb.toString());
+	}
 	
 	public void reportError(SourcePosition position, String ...error) {
 		StringBuilder sb = new StringBuilder();

@@ -3,6 +3,7 @@ package miniJava;
 import java.io.FileInputStream;
 
 import miniJava.AbstractSyntaxTrees.ASTDisplay;
+import miniJava.ContextualAnalysis.Identification;
 import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.SyntacticAnalyzer.Scanner;
 import miniJava.AbstractSyntaxTrees.Package;
@@ -34,11 +35,22 @@ public class Compiler {
 			if (_errors.hasErrors()) {
 				System.out.println("Error");
 				_errors.outputErrors();
-			} else {
-				// If there are no errors, println("Success")
-				ASTDisplay display = new ASTDisplay();
-				display.showTree(ASTPackage);
 			}
+
+			Identification identification = new Identification(_errors);
+			identification.parse(ASTPackage);
+
+			if (_errors.hasErrors()) {
+				System.out.println("Error");
+				_errors.outputErrors();
+			}
+
+
+
+			// If there are no errors, println("Success")
+			ASTDisplay display = new ASTDisplay();
+			display.showTree(ASTPackage);
+
 		} catch (Exception e) {
 			System.out.println("Error: File Not Found");
 		}
