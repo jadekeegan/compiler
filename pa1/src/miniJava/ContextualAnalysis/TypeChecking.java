@@ -206,19 +206,18 @@ public class TypeChecking implements Visitor<Object, TypeDenoter> {
     }
 
     public TypeDenoter visitLiteralExpr(LiteralExpr expr, Object arg){
-        expr.lit.visit(this, arg);
-        return null;
+        return expr.lit.visit(this, arg);
     }
 
     public TypeDenoter visitNewArrayExpr(NewArrayExpr expr, Object arg){
         expr.eltType.visit(this, arg);
         expr.sizeExpr.visit(this, arg);
-        return null;
+        return expr.eltType;
     }
 
     public TypeDenoter visitNewObjectExpr(NewObjectExpr expr, Object arg){
         expr.classtype.visit(this, arg);
-        return null;
+        return expr.classtype;
     }
 
 
@@ -229,20 +228,21 @@ public class TypeChecking implements Visitor<Object, TypeDenoter> {
     ///////////////////////////////////////////////////////////////////////////////
 
     public TypeDenoter visitThisRef(ThisRef ref, Object arg) {
-        return null;
+        return ref.associatedClass.type;
     }
 
     public TypeDenoter visitIdRef(IdRef ref, Object arg) {
         ref.id.visit(this, arg);
-        return null;
+        return ref.id.declaration.type;
     }
 
     public TypeDenoter visitQRef(QualRef qr, Object arg) {
         qr.id.visit(this, arg);
         qr.ref.visit(this, arg);
-        return null;
+        return qr.id.declaration.type;
     }
 
+    // do i need this
     public TypeDenoter visitNullRef(NullRef nr, Object arg) {
         return null;
     }
@@ -255,7 +255,7 @@ public class TypeChecking implements Visitor<Object, TypeDenoter> {
     ///////////////////////////////////////////////////////////////////////////////
 
     public TypeDenoter visitIdentifier(Identifier id, Object arg){
-        return null;
+        return id.declaration.type;
     }
 
     public TypeDenoter visitOperator(Operator op, Object arg){
@@ -263,14 +263,14 @@ public class TypeChecking implements Visitor<Object, TypeDenoter> {
     }
 
     public TypeDenoter visitIntLiteral(IntLiteral num, Object arg){
-        return null;
+        return new BaseType(TypeKind.INT, num.posn);
     }
 
     public TypeDenoter visitBooleanLiteral(BooleanLiteral bool, Object arg){
-        return null;
+        return new BaseType(TypeKind.BOOLEAN, bool.posn);
     }
 
     public TypeDenoter visitNullLiteral(NullLiteral nl, Object arg) {
-        return null;
+        return new BaseType(TypeKind.CLASS, nl.posn);
     }
 }

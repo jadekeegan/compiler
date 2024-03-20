@@ -51,13 +51,13 @@ public class Compiler {
 			_errors.outputErrors();
 		}
 
-		TypeChecking typeChecking = new TypeChecking(_errors);
-		typeChecking.parse(ASTPackage);
-
-		if (_errors.hasErrors()) {
-			System.out.println("Error");
-			_errors.outputErrors();
-		}
+//		TypeChecking typeChecking = new TypeChecking(_errors);
+//		typeChecking.parse(ASTPackage);
+//
+//		if (_errors.hasErrors()) {
+//			System.out.println("Error");
+//			_errors.outputErrors();
+//		}
 
 		System.out.println("Success");
 	}

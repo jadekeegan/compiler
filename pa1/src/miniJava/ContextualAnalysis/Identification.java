@@ -4,6 +4,8 @@ import miniJava.ErrorReporter;
 import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.AbstractSyntaxTrees.*;
 
+import java.util.Stack;
+
 public class Identification implements Visitor<Object,Object> {
     private ErrorReporter _errors;
     private ScopedIdentification si;
@@ -313,59 +315,71 @@ public class Identification implements Visitor<Object,Object> {
 
     public Object visitIdRef(IdRef ref, Object arg) {
         ref.id.visit(this, arg);
-        return ref.id.declaration;
+        return null;
     }
 
     public Object visitQRef(QualRef qr, Object arg) {
         MemberDecl context = (MemberDecl) arg;
 
         // Determine LHS Context
-        Declaration decl = (Declaration) qr.ref.visit(this, arg);
+        Stack<Reference> refStack = new Stack<>();
 
-        if (decl instanceof LocalDecl) {
-            // Handling for case A a = new A(); \ a.b = ... (using a)
-            LocalDecl ld = (LocalDecl) decl;
+        Reference currRef = qr;
+        // Load refs into refStack
+        while (currRef instanceof QualRef) {
+            refStack.push(currRef);
+            currRef = ((QualRef) currRef).ref;
+        }
 
-            if (ld.type.typeKind == TypeKind.CLASS) {
-                // get associated class of LocalDecl
-                ClassType ct = (ClassType) ld.type;
-                ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
-
-                // Find the id in the class
-                MemberDecl md = si.findDeclarationInClass(qr.id, cd, context);
-
-                // Set id declaration to found declaration
-                qr.id.declaration = md;
-                return md;
-            } else {
-                this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+        // Parse stack
+        while (!refStack.isEmpty()) {
+            Declaration decl = null;
+            if (currRef instanceof ThisRef) {
+                decl = ((ThisRef) currRef).associatedClass;
+            } else if (currRef instanceof IdRef) {
+                decl = ((IdRef) currRef).id.declaration;
             }
-        } else if (decl instanceof ClassDecl) {
-            // Handling for A.x where A is a class
-            ClassDecl cd = (ClassDecl) decl;
 
-            // Find the id in the class
-            MemberDecl md = si.findDeclarationInClass(qr.id, cd, context);
+            // get next ref from stack
+            currRef = refStack.pop();
 
-            // Set id declaration to found declaration
-            qr.id.declaration = md;
-            return md;
-        } else if (decl instanceof MemberDecl) {
-            MemberDecl md = (MemberDecl) decl;
+            QualRef currQRef = (QualRef) currRef;
+            if (decl instanceof LocalDecl) {
+                // Handling for case A a = new A(); \ a.b = ... (using a)
+                LocalDecl ld = (LocalDecl) decl;
 
-            if (md.type.typeKind == TypeKind.CLASS) {
-                // get associated class of MemberDecl
-                ClassType ct = (ClassType) md.type;
-                ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+                if (ld.type.typeKind == TypeKind.CLASS) {
+                    // get associated class of LocalDecl
+                    ClassType ct = (ClassType) ld.type;
+                    ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+
+                    // Find the id in the class
+                    // Set id declaration to found declaration
+                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
+                } else {
+                    this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+                }
+            } else if (decl instanceof ClassDecl) {
+                // Handling for A.x where A is a class
+                ClassDecl cd = (ClassDecl) decl;
 
                 // Find the id in the class
-                MemberDecl retrieved_md = si.findDeclarationInClass(qr.id, cd, context);
-
                 // Set id declaration to found declaration
-                qr.id.declaration = retrieved_md;
-                return retrieved_md;
-            } else {
-                this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+                currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
+            } else if (decl instanceof MemberDecl) {
+                MemberDecl md = (MemberDecl) decl;
+
+                if (md.type.typeKind == TypeKind.CLASS) {
+                    // get associated class of MemberDecl
+                    ClassType ct = (ClassType) md.type;
+                    ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+
+                    // Find the id in the class
+                    // Set id declaration to found declaration
+                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
+                } else {
+                    this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+                }
             }
         }
         return null;
@@ -384,11 +398,8 @@ public class Identification implements Visitor<Object,Object> {
 
     public Object visitIdentifier(Identifier id, Object arg){
         Declaration context = (Declaration) arg;
-        Declaration decl = si.findDeclaration(id, context);
-        id.declaration = decl;
-
-        // Return the Context of the Identifier
-        return decl;
+        id.declaration = si.findDeclaration(id, context);
+        return null;
     }
 
     public Object visitOperator(Operator op, Object arg){
