@@ -49,6 +49,8 @@ public class Compiler {
 		if (_errors.hasErrors()) {
 			System.out.println("Error");
 			_errors.outputErrors();
+		} else {
+			System.out.println("Success");
 		}
 
 //		TypeChecking typeChecking = new TypeChecking(_errors);
@@ -58,7 +60,5 @@ public class Compiler {
 //			System.out.println("Error");
 //			_errors.outputErrors();
 //		}
-
-		System.out.println("Success");
 	}
 }

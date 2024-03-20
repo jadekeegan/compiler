@@ -235,6 +235,9 @@ public class Identification implements Visitor<Object,Object> {
 
     public Object visitWhileStmt(WhileStmt stmt, Object arg){
         stmt.cond.visit(this, arg);
+        if (stmt.body instanceof VarDeclStmt) {
+            this._errors.reportError("IdentificationError: Solitary variable declaration not allowed in scope to itself.");
+        }
         stmt.body.visit(this, arg);
         return null;
     }
@@ -335,8 +338,12 @@ public class Identification implements Visitor<Object,Object> {
         while (!refStack.isEmpty()) {
             Declaration decl = null;
             if (currRef instanceof ThisRef) {
+                // Visit to ensure ThisRef has an associated declaration!
+                currRef.visit(this, arg);
                 decl = ((ThisRef) currRef).associatedClass;
             } else if (currRef instanceof IdRef) {
+                // Visit to ensure id has an associated declaration!
+                ((IdRef) currRef).id.visit(this, arg);
                 decl = ((IdRef) currRef).id.declaration;
             }
 
