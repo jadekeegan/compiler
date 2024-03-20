@@ -6,11 +6,11 @@ import miniJava.AbstractSyntaxTrees.*;
 
 public class Identification implements Visitor<Object,Object> {
     private ErrorReporter _errors;
-    private ScopedIdentification si = new ScopedIdentification();
+    private ScopedIdentification si;
 
     public Identification(ErrorReporter errors) {
         this._errors = errors;
-        // TODO: predefined names
+        this.si = new ScopedIdentification(_errors);
     }
 
     public void parse( Package prog ) {
@@ -19,10 +19,6 @@ public class Identification implements Visitor<Object,Object> {
         } catch( IdentificationError e ) {
             _errors.reportError(e.toString());
         }
-    }
-
-    public Object visitPackage(Package prog, Object arg) throws IdentificationError {
-        throw new IdentificationError(prog, "Identification Error in VisitPackage");
     }
 
     class IdentificationError extends Error {
@@ -42,36 +38,16 @@ public class Identification implements Visitor<Object,Object> {
         }
     }
 
-    /**
-     * quote a string
-     * @param text    string to quote
-     */
-    private String quote(String text) {
-        return ("\"" + text + "\"");
-    }
-
-    /**
-     * increase depth in AST
-     * @param prefix  current spacing to indicate depth in AST
-     * @return  new spacing
-     */
-    private String indent(String prefix) {
-        return prefix + "  ";
-    }
-
     ///////////////////////////////////////////////////////////////////////////////
     //
     // PACKAGE
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitPackage(Package prog, String arg){
+    public Object visitPackage(Package prog, Object arg){
         ClassDeclList cl = prog.classDeclList;
-        String pfx = arg + "  . ";
-
         // Open Level 0 Scope
-        IDTable level0 = new IDTable();
-        si.openScope(level0);
+        si.openScope();
 
         // Add Predefined Class Declarations
         si.addPredefinedDeclarations();
@@ -82,55 +58,24 @@ public class Identification implements Visitor<Object,Object> {
         }
 
         // Open Level 1 Scope
-        IDTable level1 = new IDTable();
-        si.openScope(level1);
+        si.openScope();
 
         // Public Fields/Methods for Classes
         for (ClassDecl c: cl) {
-            // Add Public Fields for Class to Level 1 Scope
+            // Add Fields for Class to Level 1 Scope
             for (FieldDecl f: c.fieldDeclList) {
-                if (!f.isPrivate) { si.addDeclaration(f.name, f); }
+                si.addDeclaration(f.name, f);
+                f.associatedClass = c;
             }
 
-            // Add Public Methods for Class to Level 1 Scope
+            // Add Methods for Class to Level 1 Scope
             for (MethodDecl m: c.methodDeclList) {
-                if (!m.isPrivate) { si.addDeclaration(m.name, m); }
-            }
-        }
-
-        for (ClassDecl c: cl) {
-            // Store Private Methods/Fields for Removal
-            FieldDeclList privateFields = new FieldDeclList();
-            MethodDeclList privateMethods = new MethodDeclList();
-
-            // Add Private Fields for Class to Level 1 Scope
-            for (FieldDecl f: c.fieldDeclList) {
-                if (f.isPrivate) {
-                    privateFields.add(f);
-                    si.addDeclaration(f.name, f);
-                }
-            }
-
-            // Add Private Methods for Class to Level 1 Scope
-            for (MethodDecl m: c.methodDeclList) {
-                if (m.isPrivate) {
-                    privateMethods.add(m);
-                    si.addDeclaration(m.name, m);
-                }
+                si.addDeclaration(m.name, m);
+                m.associatedClass = c;
             }
 
             // Visit the Class
-            c.visit(this, pfx);
-
-            // Remove Private Fields for Class from Level 1 Scope
-            for (FieldDecl f: privateFields) {
-                si.removeDeclaration(f.name);
-            }
-
-            // Remove Private Methods for Class from Level 1 Scope
-            for (MethodDecl m: privateMethods) {
-                si.removeDeclaration(m.name);
-            }
+            c.visit(this, arg);
         }
 
         return null;
@@ -143,34 +88,35 @@ public class Identification implements Visitor<Object,Object> {
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitClassDecl(ClassDecl clas, String arg){
-        String pfx = arg + "  . ";
+    public Object visitClassDecl(ClassDecl clas, Object arg){
         for (FieldDecl f: clas.fieldDeclList)
-            f.visit(this, pfx);
+            // When visiting fields, you now have the context of the class the field is in.
+            f.visit(this, clas);
         for (MethodDecl m: clas.methodDeclList)
-            m.visit(this, pfx);
+            // When visiting methods, you now have the context of the class the method is in.
+            m.visit(this, clas);
         return null;
     }
 
-    public Object visitFieldDecl(FieldDecl f, String arg){
-        f.type.visit(this, indent(arg));
+    public Object visitFieldDecl(FieldDecl f, Object arg){
+        f.type.visit(this, arg);
         return null;
     }
 
-    public Object visitMethodDecl(MethodDecl m, String arg){
+    public Object visitMethodDecl(MethodDecl m, Object arg){
         // Open Level 2+ Scope for Method
-        IDTable level2 = new IDTable();
-        si.openScope(level2);
+        si.openScope();
 
-        m.type.visit(this, indent(arg));
+        m.type.visit(this, arg);
         ParameterDeclList pdl = m.parameterDeclList;
-        String pfx = ((String) arg) + "  . ";
         for (ParameterDecl pd: pdl) {
-            pd.visit(this, pfx);
+            // When visiting parameters, you now have the context of the method the parameters are in.
+            pd.visit(this, m);
         }
         StatementList sl = m.statementList;
         for (Statement s: sl) {
-            s.visit(this, pfx);
+            // When visiting statements, you now have the context of the method the statements are in.
+            s.visit(this, m);
         }
 
         // Close Level 2+ Scope for Method
@@ -178,19 +124,17 @@ public class Identification implements Visitor<Object,Object> {
         return null;
     }
 
-    public Object visitParameterDecl(ParameterDecl pd, String arg){
+    public Object visitParameterDecl(ParameterDecl pd, Object arg){
         // Add ParameterDecl to Level 2+ Scope
         si.addDeclaration(pd.name, pd);
-
-        pd.type.visit(this, indent(arg));
+        pd.type.visit(this, arg);
         return null;
     }
 
-    public Object visitVarDecl(VarDecl vd, String arg){
+    public Object visitVarDecl(VarDecl vd, Object arg){
         // Add VarDecl to Level 2+ Scope
         si.addDeclaration(vd.name, vd);
-
-        vd.type.visit(this, indent(arg));
+        vd.type.visit(this, arg);
         return null;
     }
 
@@ -201,17 +145,17 @@ public class Identification implements Visitor<Object,Object> {
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitBaseType(BaseType type, String arg){
+    public Object visitBaseType(BaseType type, Object arg){
         return null;
     }
 
-    public Object visitClassType(ClassType ct, String arg){
-        ct.className.visit(this, indent(arg));
+    public Object visitClassType(ClassType ct, Object arg){
+        ct.className.visit(this, arg);
         return null;
     }
 
-    public Object visitArrayType(ArrayType type, String arg){
-        type.eltType.visit(this, indent(arg));
+    public Object visitArrayType(ArrayType type, Object arg){
+        type.eltType.visit(this, arg);
         return null;
     }
 
@@ -222,15 +166,13 @@ public class Identification implements Visitor<Object,Object> {
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitBlockStmt(BlockStmt stmt, String arg){
+    public Object visitBlockStmt(BlockStmt stmt, Object arg){
         // Open Level 2+ Scope for BlockStmt
-        IDTable level2 = new IDTable();
-        si.openScope(level2);
+        si.openScope();
 
         StatementList sl = stmt.sl;
-        String pfx = arg + "  . ";
         for (Statement s: sl) {
-            s.visit(this, pfx);
+            s.visit(this, arg);
         }
 
         // Close Level 2+ Scope for BlockStmt
@@ -239,52 +181,59 @@ public class Identification implements Visitor<Object,Object> {
         return null;
     }
 
-    public Object visitVardeclStmt(VarDeclStmt stmt, String arg){
-        stmt.varDecl.visit(this, indent(arg));
-        stmt.initExp.visit(this, indent(arg));
+    public Object visitVardeclStmt(VarDeclStmt stmt, Object arg){
+        stmt.varDecl.visit(this, arg);
+        stmt.initExp.visit(this, arg);
+
+        // After varDecl and associated Expression visited, varDecl has been initialized.
+        stmt.varDecl.isInitialized = true;
         return null;
     }
 
-    public Object visitAssignStmt(AssignStmt stmt, String arg){
-        stmt.ref.visit(this, indent(arg));
-        stmt.val.visit(this, indent(arg));
+    public Object visitAssignStmt(AssignStmt stmt, Object arg){
+        stmt.ref.visit(this, arg);
+        stmt.val.visit(this, arg);
         return null;
     }
 
-    public Object visitIxAssignStmt(IxAssignStmt stmt, String arg){
-        stmt.ref.visit(this, indent(arg));
-        stmt.ix.visit(this, indent(arg));
-        stmt.exp.visit(this, indent(arg));
+    public Object visitIxAssignStmt(IxAssignStmt stmt, Object arg){
+        stmt.ref.visit(this, arg);
+        stmt.ix.visit(this, arg);
+        stmt.exp.visit(this, arg);
         return null;
     }
 
-    public Object visitCallStmt(CallStmt stmt, String arg){
-        stmt.methodRef.visit(this, indent(arg));
+    public Object visitCallStmt(CallStmt stmt, Object arg){
+        stmt.methodRef.visit(this, arg);
         ExprList al = stmt.argList;
-        String pfx = arg + "  . ";
         for (Expression e: al) {
-            e.visit(this, pfx);
+            e.visit(this, arg);
         }
         return null;
     }
 
-    public Object visitReturnStmt(ReturnStmt stmt, String arg){
+    public Object visitReturnStmt(ReturnStmt stmt, Object arg){
         if (stmt.returnExpr != null)
-            stmt.returnExpr.visit(this, indent(arg));
+            stmt.returnExpr.visit(this, arg);
         return null;
     }
 
-    public Object visitIfStmt(IfStmt stmt, String arg){
-        stmt.cond.visit(this, indent(arg));
-        stmt.thenStmt.visit(this, indent(arg));
+    public Object visitIfStmt(IfStmt stmt, Object arg){
+        stmt.cond.visit(this, arg);
+
+        if (stmt.thenStmt instanceof VarDeclStmt) {
+            this._errors.reportError("IdentificationError: Solitary variable declaration not allowed in scope to itself.");
+        }
+
+        stmt.thenStmt.visit(this, arg);
         if (stmt.elseStmt != null)
-            stmt.elseStmt.visit(this, indent(arg));
+            stmt.elseStmt.visit(this, arg);
         return null;
     }
 
-    public Object visitWhileStmt(WhileStmt stmt, String arg){
-        stmt.cond.visit(this, indent(arg));
-        stmt.body.visit(this, indent(arg));
+    public Object visitWhileStmt(WhileStmt stmt, Object arg){
+        stmt.cond.visit(this, arg);
+        stmt.body.visit(this, arg);
         return null;
     }
 
@@ -295,53 +244,52 @@ public class Identification implements Visitor<Object,Object> {
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitUnaryExpr(UnaryExpr expr, String arg){
-        expr.operator.visit(this, indent(arg));
-        expr.expr.visit(this, indent(indent(arg)));
+    public Object visitUnaryExpr(UnaryExpr expr, Object arg){
+        expr.operator.visit(this, arg);
+        expr.expr.visit(this, arg);
         return null;
     }
 
-    public Object visitBinaryExpr(BinaryExpr expr, String arg){
-        expr.operator.visit(this, indent(arg));
-        expr.left.visit(this, indent(indent(arg)));
-        expr.right.visit(this, indent(indent(arg)));
+    public Object visitBinaryExpr(BinaryExpr expr, Object arg){
+        expr.operator.visit(this, arg);
+        expr.left.visit(this, arg);
+        expr.right.visit(this, arg);
         return null;
     }
 
-    public Object visitRefExpr(RefExpr expr, String arg){
-        expr.ref.visit(this, indent(arg));
+    public Object visitRefExpr(RefExpr expr, Object arg){
+        expr.ref.visit(this, arg);
         return null;
     }
 
-    public Object visitIxExpr(IxExpr ie, String arg){
-        ie.ref.visit(this, indent(arg));
-        ie.ixExpr.visit(this, indent(arg));
+    public Object visitIxExpr(IxExpr ie, Object arg){
+        ie.ref.visit(this, arg);
+        ie.ixExpr.visit(this, arg);
         return null;
     }
 
-    public Object visitCallExpr(CallExpr expr, String arg){
-        expr.functionRef.visit(this, indent(arg));
+    public Object visitCallExpr(CallExpr expr, Object arg){
+        expr.functionRef.visit(this, arg);
         ExprList al = expr.argList;
-        String pfx = arg + "  . ";
         for (Expression e: al) {
-            e.visit(this, pfx);
+            e.visit(this, arg);
         }
         return null;
     }
 
-    public Object visitLiteralExpr(LiteralExpr expr, String arg){
-        expr.lit.visit(this, indent(arg));
+    public Object visitLiteralExpr(LiteralExpr expr, Object arg){
+        expr.lit.visit(this, arg);
         return null;
     }
 
-    public Object visitNewArrayExpr(NewArrayExpr expr, String arg){
-        expr.eltType.visit(this, indent(arg));
-        expr.sizeExpr.visit(this, indent(arg));
+    public Object visitNewArrayExpr(NewArrayExpr expr, Object arg){
+        expr.eltType.visit(this, arg);
+        expr.sizeExpr.visit(this, arg);
         return null;
     }
 
-    public Object visitNewObjectExpr(NewObjectExpr expr, String arg){
-        expr.classtype.visit(this, indent(arg));
+    public Object visitNewObjectExpr(NewObjectExpr expr, Object arg){
+        expr.classtype.visit(this, arg);
         return null;
     }
 
@@ -352,25 +300,78 @@ public class Identification implements Visitor<Object,Object> {
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitThisRef(ThisRef ref, String arg) {
-        // TODO: CHECK SCOPE
-        return null;
+    public Object visitThisRef(ThisRef ref, Object arg) {
+        MemberDecl md = (MemberDecl) arg;
+
+        if (md.isStatic) {
+            this._errors.reportError("IdentificationError: Invalid reference to `this` in a static method.");
+        }
+
+        ref.associatedClass = md.associatedClass;
+        return ref.associatedClass;
     }
 
-    public Object visitIdRef(IdRef ref, String arg) {
-        ref.id.visit(this, indent(arg));
-        return null;
+    public Object visitIdRef(IdRef ref, Object arg) {
+        ref.id.visit(this, arg);
+        return ref.id.declaration;
     }
 
-    public Object visitQRef(QualRef qr, String arg) {
+    public Object visitQRef(QualRef qr, Object arg) {
+        MemberDecl context = (MemberDecl) arg;
+
         // Determine LHS Context
-        // TODO: CHECK SCOPE
-        Declaration context = (Declaration) qr.id.visit(this, indent(arg));
-        qr.ref.visit(this, indent(arg));
+        Declaration decl = (Declaration) qr.ref.visit(this, arg);
+
+        if (decl instanceof LocalDecl) {
+            // Handling for case A a = new A(); \ a.b = ... (using a)
+            LocalDecl ld = (LocalDecl) decl;
+
+            if (ld.type.typeKind == TypeKind.CLASS) {
+                // get associated class of LocalDecl
+                ClassType ct = (ClassType) ld.type;
+                ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+
+                // Find the id in the class
+                MemberDecl md = si.findDeclarationInClass(qr.id, cd, context);
+
+                // Set id declaration to found declaration
+                qr.id.declaration = md;
+                return md;
+            } else {
+                this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+            }
+        } else if (decl instanceof ClassDecl) {
+            // Handling for A.x where A is a class
+            ClassDecl cd = (ClassDecl) decl;
+
+            // Find the id in the class
+            MemberDecl md = si.findDeclarationInClass(qr.id, cd, context);
+
+            // Set id declaration to found declaration
+            qr.id.declaration = md;
+            return md;
+        } else if (decl instanceof MemberDecl) {
+            MemberDecl md = (MemberDecl) decl;
+
+            if (md.type.typeKind == TypeKind.CLASS) {
+                // get associated class of MemberDecl
+                ClassType ct = (ClassType) md.type;
+                ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+
+                // Find the id in the class
+                MemberDecl retrieved_md = si.findDeclarationInClass(qr.id, cd, context);
+
+                // Set id declaration to found declaration
+                qr.id.declaration = retrieved_md;
+                return retrieved_md;
+            } else {
+                this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+            }
+        }
         return null;
     }
 
-    public Object visitNullRef(NullRef nr, String arg) {
+    public Object visitNullRef(NullRef nr, Object arg) {
         return null;
     }
 
@@ -381,33 +382,28 @@ public class Identification implements Visitor<Object,Object> {
     //
     ///////////////////////////////////////////////////////////////////////////////
 
-    public Object visitIdentifier(Identifier id, String arg){
-        Declaration decl = si.findDeclaration(id, null);
+    public Object visitIdentifier(Identifier id, Object arg){
+        Declaration context = (Declaration) arg;
+        Declaration decl = si.findDeclaration(id, context);
+        id.declaration = decl;
 
-        // Report Error if Identifier Not Found
-        if (decl == null) {
-            _errors.reportError("IdentificationError: Identifier could not be resolved.");
-        } else {
-            // Assign the Declaration to the Identifier
-            id.setContext(decl);
-        }
         // Return the Context of the Identifier
         return decl;
     }
 
-    public Object visitOperator(Operator op, String arg){
+    public Object visitOperator(Operator op, Object arg){
         return null;
     }
 
-    public Object visitIntLiteral(IntLiteral num, String arg){
+    public Object visitIntLiteral(IntLiteral num, Object arg){
         return null;
     }
 
-    public Object visitBooleanLiteral(BooleanLiteral bool, String arg){
+    public Object visitBooleanLiteral(BooleanLiteral bool, Object arg){
         return null;
     }
 
-    public Object visitNullLiteral(NullLiteral nl, String arg) {
+    public Object visitNullLiteral(NullLiteral nl, Object arg) {
         return null;
     }
 }

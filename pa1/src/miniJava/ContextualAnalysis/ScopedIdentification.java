@@ -1,18 +1,23 @@
 package miniJava.ContextualAnalysis;
 
 import miniJava.AbstractSyntaxTrees.*;
+import miniJava.ErrorReporter;
 import miniJava.SyntacticAnalyzer.Token;
 import miniJava.SyntacticAnalyzer.TokenType;
 
+import java.lang.reflect.Method;
 import java.util.Stack;
 
 public class ScopedIdentification {
-    Stack<IDTable> si = new Stack<IDTable>();
+    public Stack<IDTable> si = new Stack<>();
+    private ErrorReporter _errors;
 
-    ScopedIdentification() {}
+    ScopedIdentification(ErrorReporter _errors) {
+        this._errors = _errors;
+    }
 
-    public void openScope(IDTable idTable) {
-        si.push(idTable);
+    public void openScope() {
+        si.push(new IDTable());
     }
 
     public void closeScope() {
@@ -20,14 +25,44 @@ public class ScopedIdentification {
     }
 
     public void addDeclaration(String id, Declaration decl) {
-        IDTable top = si.peek();
+        // If at scope higher than level 2
+        if (si.size() > 3) {
+            Stack<IDTable> siCopy = new Stack<>();
+            siCopy.addAll(si);
 
-        // if top IDTable contains ID already, throw IDError
-        if (top.containsDecl(id)) {
-//            throw new IdentificationError("Error: Identifier already exists at this level.");
+            // For all scopes higher than level 1 (2 tables on stack)
+            while (siCopy.size() > 2) {
+                IDTable curr = siCopy.pop();
+                if (curr.containsKey(id)) {
+                    this._errors.reportError("IdentificationError: IDTable already contains Identifier.");
+                    break;
+                }
+            }
+
+            si.peek().put(id, decl);
+        } else {
+            IDTable top = si.peek();
+
+            // Ensure class exists when declaring new Var/Param
+            if (decl instanceof LocalDecl) {
+                LocalDecl ld = (LocalDecl) decl;
+                if (decl.type.typeKind == TypeKind.CLASS) {
+                    ClassType ct = (ClassType) ld.type;
+
+                    if (!si.get(0).containsKey(ct.className.spelling)) {
+                        this._errors.reportError("IdentificationError: Undeclared class for identifier declaration.");
+                    }
+                }
+            }
+
+            // if top IDTable contains ID already, throw IDError
+            if (top.containsKey(id)) {
+                this._errors.reportError("IdentificationError: IDTable already contains Identifier.");
+            }
+
+            top.put(id, decl);
         }
 
-        top.put(id, decl);
     }
 
     public void removeDeclaration(String id) {
@@ -35,17 +70,59 @@ public class ScopedIdentification {
         top.remove(id);
     }
 
-    public Declaration findDeclaration(Identifier id, Declaration decl) {
-        Stack<IDTable> siCopy = new Stack<IDTable>();
+    public MemberDecl findDeclarationInClass(Identifier id, ClassDecl cd, Declaration context) {
+        MemberDecl result = null;
+        for (FieldDecl f: cd.fieldDeclList) {
+            if (f.name.equals(id.spelling)) {
+                result = f;
+                break;
+            }
+        }
+
+        if (result == null) {
+            for (MethodDecl m : cd.methodDeclList) {
+                if (m.name.equals(id.spelling)) {
+                    result = m;
+                    break;
+                }
+            }
+        }
+
+        if (result == null) {
+            this._errors.reportError("IdentificationError: Unable to resolve reference to '" + id.spelling + "' in class " + cd.name);
+        } else if (result.isPrivate) {
+            MethodDecl md = (MethodDecl) context;
+            if (md.associatedClass.name.equals(result.associatedClass.name)) {
+                return result;
+            }
+
+            this._errors.reportError("IdentificationError: Invalid attempt to reference private identifier '" + id.spelling + "' in class " + cd.name);
+        }
+
+        return result;
+    }
+
+    public Declaration findDeclaration(Identifier id, Declaration context) {
+        Stack<IDTable> siCopy = new Stack<>();
         siCopy.addAll(si);
 
         Declaration result = null;
-        while (siCopy.peek() != null) {
+        while (!siCopy.isEmpty()) {
             IDTable curr = siCopy.pop();
-            if (curr.containsDecl(id.spelling)) {
+            if (curr.containsKey(id.spelling)) {
                 result = curr.get(id.spelling);
+                break;
             }
         }
+
+        if (result == null) {
+            _errors.reportError("IdentificationError: Unable to resolve identifier.");
+        } else if (result instanceof MemberDecl && ((MemberDecl) result).isPrivate) {
+            _errors.reportError("IdentificationError: Invalid attempt to access a private identifier.");
+        } else if (result instanceof MemberDecl && context instanceof MethodDecl && ((MethodDecl) context).isStatic && !((MemberDecl) result).isStatic) {
+            _errors.reportError("IdentificationError: Invalid attempt to access a non-static member in a static method.");
+        }
+
         return result;
     }
 
@@ -66,7 +143,8 @@ public class ScopedIdentification {
 
         // Add System Class
         FieldDeclList systemFields = new FieldDeclList();
-        FieldDecl outField = new FieldDecl(false, true, _PrintStream.type, "out", null);
+        TypeDenoter outFieldType = new ClassType(new Identifier(new Token(TokenType.Identifier, "_PrintStream", null)), null);
+        FieldDecl outField = new FieldDecl(false, true, outFieldType, "out", null);
         systemFields.add(outField);
         ClassDecl System = new ClassDecl("System", systemFields, new MethodDeclList(), null);
         addDeclaration(System.name, System);

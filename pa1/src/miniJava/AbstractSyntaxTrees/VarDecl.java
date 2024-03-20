@@ -8,6 +8,7 @@ package miniJava.AbstractSyntaxTrees;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class VarDecl extends LocalDecl {
+	public boolean isInitialized = false;
 	
 	public VarDecl(TypeDenoter t, String name, SourcePosition posn) {
 		super(name, t, posn);

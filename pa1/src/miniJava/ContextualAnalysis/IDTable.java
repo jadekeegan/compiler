@@ -21,7 +21,7 @@ public class IDTable {
         return this.idTable.get(key);
     }
 
-    public boolean containsDecl(String key) {
-        return this.get(key) != null;
+    public boolean containsKey(String key) {
+        return this.idTable.containsKey(key);
     }
 }

@@ -8,6 +8,7 @@ package miniJava.AbstractSyntaxTrees;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class ThisRef extends BaseRef {
+	public ClassDecl associatedClass;
 	
 	public ThisRef(SourcePosition posn) {
 		super(posn);
