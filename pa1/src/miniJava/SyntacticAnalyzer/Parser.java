@@ -497,6 +497,10 @@ public class Parser {
 			BooleanLiteral terminal = new BooleanLiteral(this._currentToken);
 			this.accept(TokenType.BoolLiteral);
 			return new LiteralExpr(terminal, this._currentToken.getTokenPosition());
+		} else if (this._currentToken.getTokenType() == TokenType.NullLiteral) {
+			NullLiteral terminal = new NullLiteral(this._currentToken);
+			this.accept(TokenType.NullLiteral);
+			return new LiteralExpr(terminal, this._currentToken.getTokenPosition());
 		} else if (this._currentToken.getTokenType() == TokenType.Identifier || this._currentToken.getTokenType() == TokenType.This) {
 			Reference reference = this.parseReference(null);
 			Expression e1 = new RefExpr(reference, this._currentToken.getTokenPosition());

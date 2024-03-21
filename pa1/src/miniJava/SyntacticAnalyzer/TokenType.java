@@ -35,13 +35,13 @@ public enum TokenType {
 	Visibility,		// public, private
 	Access,			// static
 	Void, 			// void
-	Null,			// null
 	IntType,		// int
 	BoolType,		// boolean
 	This,		// this
 	Semicolon,		// ;
 	BoolLiteral,	// true, false
 	IntLiteral,		// num
+	NullLiteral,			// null
 	New,			// new
 	EOT,			// eot
 	Error,

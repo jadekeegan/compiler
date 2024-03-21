@@ -230,7 +230,7 @@ public class Scanner {
 			case "public": case "private": return TokenType.Visibility;
             case "static": return TokenType.Access;
             case "void": return TokenType.Void;
-            case "null": return TokenType.Null;
+            case "null": return TokenType.NullLiteral;
             case "int": return TokenType.IntType;
             case "boolean": return TokenType.BoolType;
             case "this": return TokenType.This;

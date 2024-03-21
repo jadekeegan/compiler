@@ -5,12 +5,20 @@ import miniJava.ErrorReporter;
 import miniJava.SyntacticAnalyzer.Token;
 import miniJava.SyntacticAnalyzer.TokenType;
 
-import java.lang.reflect.Method;
 import java.util.Stack;
 
 public class ScopedIdentification {
     public Stack<IDTable> si = new Stack<>();
     private ErrorReporter _errors;
+
+    public static void main(String[] args) {
+        ScopedIdentification p = new ScopedIdentification(new ErrorReporter());
+        p.next = p;
+        p.next.next.x = 3;
+    }
+
+    public ScopedIdentification next;
+    private int x;
 
     ScopedIdentification(ErrorReporter _errors) {
         this._errors = _errors;
@@ -58,9 +66,9 @@ public class ScopedIdentification {
             // if top IDTable contains ID already, throw IDError
             if (top.containsKey(id)) {
                 this._errors.reportError("IdentificationError: IDTable already contains Identifier.");
+            } else {
+                top.put(id, decl);
             }
-
-            top.put(id, decl);
         }
 
     }
@@ -91,11 +99,9 @@ public class ScopedIdentification {
         if (result == null) {
             this._errors.reportError("IdentificationError: Unable to resolve reference to '" + id.spelling + "' in class " + cd.name);
         } else if (result.isPrivate) {
-            MethodDecl md = (MethodDecl) context;
-            if (md.associatedClass.name.equals(result.associatedClass.name)) {
+            if (((MethodDecl) context).associatedClass.name.equals(result.associatedClass.name)) {
                 return result;
             }
-
             this._errors.reportError("IdentificationError: Invalid attempt to reference private identifier '" + id.spelling + "' in class " + cd.name);
         }
 
@@ -119,16 +125,24 @@ public class ScopedIdentification {
             _errors.reportError("IdentificationError: Unable to resolve identifier.");
         } else if (result instanceof MemberDecl && ((MemberDecl) result).isPrivate) {
             _errors.reportError("IdentificationError: Invalid attempt to access a private identifier.");
+        } else if (result instanceof VarDecl && !((VarDecl) result).isInitialized) {
+            _errors.reportError("IdentificationError: Invalid attempt to access uninitialized variable " + result.name);
         } else if (result instanceof MemberDecl && context instanceof MethodDecl && ((MethodDecl) context).isStatic && !((MemberDecl) result).isStatic) {
+            MethodDecl md = (MethodDecl) context;
+            if (md.associatedClass.name.equals(((MemberDecl) result).associatedClass.name)) {
+                return result;
+            }
+
             _errors.reportError("IdentificationError: Invalid attempt to access a non-static member in a static method.");
         }
 
         return result;
     }
 
-    public void addPredefinedDeclarations() {
+    public void addPredefinedClassDeclarations() {
         // Add String Class
         ClassDecl String = new ClassDecl("String", new FieldDeclList(), new MethodDeclList(), null);
+        String.type = new BaseType(TypeKind.UNSUPPORTED, null);
         addDeclaration(String.name, String);
 
         // Add _PrintStream Class
@@ -150,4 +164,13 @@ public class ScopedIdentification {
         addDeclaration(System.name, System);
     }
 
+    public void addPredefinedMemberDeclarations() {
+        IDTable level0 = si.get(0);
+
+        ClassDecl _PrintStream = (ClassDecl) level0.get("_PrintStream");
+        addDeclaration(_PrintStream.methodDeclList.get(0).name, _PrintStream.methodDeclList.get(0));
+
+        ClassDecl System = (ClassDecl) level0.get("System");
+        addDeclaration(System.fieldDeclList.get(0).name, System.fieldDeclList.get(0));
+    }
 }

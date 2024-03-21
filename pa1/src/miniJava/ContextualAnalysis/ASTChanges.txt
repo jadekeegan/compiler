@@ -1,12 +1,12 @@
 AST Changes:
 - Add NullLiteral class and updated Visitor interface and ASTDisplay class accordingly.
 - Add NullRef class and updated Visitor interface and ASTDisplay class accordingly.
-- Add IdentificationError class for IDErrors.
 - Add IDTable class to implement the HashMap of Strings and Declarations and its functionality.
 - Add ScopedIdentification class to implement the Stack of IDTables and its functionality.
 - Add and implement Identification class which implements the Visitor interface to traverse for identification.
 - Add Declaration `declaration` field to Identifier class and implement corresponding setContext() method.
 - Add boolean `isInitialized` field for VarDecl to determine if it is initialized (specifically for the int x = x + 1 case, for example).
-- Add ClassDecl `associatedClass` field for MemberDecl and ThisRef to give context.
+- Add ClassDecl `associatedClass` field for MemberDecl to give context.
 - Make visit methods inside visitFieldDecl and visitMethodDecl take corresponding FieldDecl/MethodDecl as context.
-- Add and implement TypeChecking class which implements the Visitor interface to traverse for type checking.
+- Add Declaration `declaration` field to Reference class to give context for TypeChecking.
+- Add `NULL` TypeKind to handle NullLiterals.

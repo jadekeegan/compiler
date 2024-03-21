@@ -2,9 +2,7 @@ package miniJava;
 
 import java.io.FileInputStream;
 
-import miniJava.AbstractSyntaxTrees.ASTDisplay;
 import miniJava.ContextualAnalysis.Identification;
-import miniJava.ContextualAnalysis.TypeChecking;
 import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.SyntacticAnalyzer.Scanner;
 import miniJava.AbstractSyntaxTrees.Package;
@@ -52,13 +50,5 @@ public class Compiler {
 		} else {
 			System.out.println("Success");
 		}
-
-//		TypeChecking typeChecking = new TypeChecking(_errors);
-//		typeChecking.parse(ASTPackage);
-//
-//		if (_errors.hasErrors()) {
-//			System.out.println("Error");
-//			_errors.outputErrors();
-//		}
 	}
 }
