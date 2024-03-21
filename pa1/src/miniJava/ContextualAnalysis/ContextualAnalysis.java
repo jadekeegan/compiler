@@ -51,6 +51,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         // Open Level 1 Scope
         si.openScope();
 
+        // Add Predefined Member Declarations (from Predefined Classes)
         si.addPredefinedMemberDeclarations();
 
         // Fields/Methods for Classes
@@ -68,8 +69,8 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             }
         }
 
+        // Visit the Classes
         for (ClassDecl c: cl) {
-            // Visit the Class
             c.visit(this, arg);
         }
 
@@ -103,11 +104,13 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         si.openScope();
 
         m.type.visit(this, arg);
+
         ParameterDeclList pdl = m.parameterDeclList;
         for (ParameterDecl pd: pdl) {
             // When visiting parameters, you now have the context of the method the parameters are in.
             pd.visit(this, m);
         }
+
         StatementList sl = m.statementList;
         for (Statement s: sl) {
             // When visiting statements, you now have the context of the method the statements are in.
@@ -163,6 +166,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         // Open Level 2+ Scope for BlockStmt
         si.openScope();
 
+        // Visit each statement in the BlockStmt
         StatementList sl = stmt.sl;
         for (Statement s: sl) {
             s.visit(this, arg);
@@ -178,11 +182,13 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         TypeDenoter varType = (TypeDenoter) stmt.varDecl.visit(this, arg);
         TypeDenoter stmtType = (TypeDenoter) stmt.initExp.visit(this, arg);
 
+        // If assigning variable to NULL, declaration is valid.
         if (stmtType.typeKind == TypeKind.NULL) {
             stmt.varDecl.isInitialized = true;
             return null;
         }
 
+        // If expression results in a class reference and is NOT a ThisRef, IdentificationError.
         if ((stmt.initExp instanceof CallExpr && !(((CallExpr) stmt.initExp).functionRef instanceof ThisRef) && ((CallExpr) stmt.initExp).functionRef.declaration instanceof ClassDecl)
                 || (stmt.initExp instanceof RefExpr && !(((RefExpr) stmt.initExp).ref instanceof ThisRef) && ((RefExpr) stmt.initExp).ref.declaration instanceof ClassDecl)
                 || (stmt.initExp instanceof IxExpr && !(((IxExpr) stmt.initExp).ref instanceof ThisRef) && ((IxExpr) stmt.initExp).ref.declaration instanceof ClassDecl)) {
@@ -191,13 +197,15 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         }
 
         if (!varType.compareType(stmtType)) {
+            // If TypeKinds do not match, TypeCheckingError.
             this.reportTypeCheckingError(stmt.initExp.posn,
                     "Type mismatch between variable declaration of type " + varType.typeKind
                             + " and expression type " + stmtType.typeKind);
         } else if (varType instanceof ClassType && !((ClassType) varType).className.spelling.equals(((ClassType) stmtType).className.spelling)) {
+            // If TypeKind Class but Class names don't match, TypeCheckingError.
             this.reportTypeCheckingError(stmt.initExp.posn,
                     "Type mismatch between variable declaration of class " + ((ClassType) varType).className.spelling
-                            + " and reference of class " + ((ClassType) stmtType).className);
+                            + " and reference of class " + ((ClassType) stmtType).className.spelling);
         }
 
         // After varDecl and associated Expression visited, varDecl has been initialized.
@@ -209,10 +217,12 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         TypeDenoter refType = (TypeDenoter) stmt.ref.visit(this, arg);
         TypeDenoter stmtType = (TypeDenoter) stmt.val.visit(this, arg);
 
+        // If assigning variable to NULL, declaration is valid.
         if (stmtType.typeKind == TypeKind.NULL) {
             return null;
         }
 
+        // If expression results in a class reference and is NOT a ThisRef, IdentificationError.
         if ((stmt.val instanceof CallExpr && !(((CallExpr) stmt.val).functionRef instanceof ThisRef) && ((CallExpr) stmt.val).functionRef.declaration instanceof ClassDecl)
                 || (stmt.val instanceof RefExpr && !(((RefExpr) stmt.val).ref instanceof ThisRef) && ((RefExpr) stmt.val).ref.declaration instanceof ClassDecl)
                 || (stmt.val instanceof IxExpr && !(((IxExpr) stmt.val).ref instanceof ThisRef) && ((IxExpr) stmt.val).ref.declaration instanceof ClassDecl)) {
@@ -221,10 +231,16 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         }
 
         if (!refType.compareType(stmtType)) {
+            // If TypeKinds do not match, TypeCheckingError.
             this.reportTypeCheckingError(stmt.val.posn,
                     "Type mismatch between variable assignment of type " + refType.typeKind
                             + " and expression type " + stmtType.typeKind);
-        }
+        } else if (refType instanceof ClassType && !((ClassType) refType).className.spelling.equals(((ClassType) stmtType).className.spelling)) {
+                // If TypeKind Class but Class names don't match, TypeCheckingError.
+                this.reportTypeCheckingError(stmt.val.posn,
+                        "Type mismatch between variable declaration of class " + ((ClassType) refType).className.spelling
+                                + " and reference of class " + ((ClassType) stmtType).className.spelling);
+            }
         return null;
     }
 
@@ -232,9 +248,12 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         stmt.ref.visit(this, arg);
 
         if (stmt.ref.declaration.type instanceof ArrayType) {
+            // If indexing an ArrayType reference
+            // Get type of the index expression
             TypeDenoter ixExprType = (TypeDenoter) stmt.ix.visit(this, arg);
 
             if (ixExprType.typeKind != TypeKind.INT) {
+                // If type of the index expression is not INT
                 this.reportTypeCheckingError(stmt.ix.posn,
                         "Array index expects type INT but provided type " + ixExprType.typeKind);
             }
@@ -242,10 +261,12 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             TypeDenoter eltType = ((ArrayType) stmt.ref.declaration.type).eltType;
             TypeDenoter stmtType = (TypeDenoter) stmt.exp.visit(this, arg);
 
+            // If assigning variable to NULL, declaration is valid.
             if (stmtType.typeKind == TypeKind.NULL) {
                 return null;
             }
 
+            // If expression results in a class reference and is NOT a ThisRef, IdentificationError.
             if ((stmt.exp instanceof CallExpr && !(((CallExpr) stmt.exp).functionRef instanceof ThisRef) && ((CallExpr) stmt.exp).functionRef.declaration instanceof ClassDecl)
                     || (stmt.exp instanceof RefExpr && !(((RefExpr) stmt.exp).ref instanceof ThisRef) && ((RefExpr) stmt.exp).ref.declaration instanceof ClassDecl)
                     || (stmt.exp instanceof IxExpr && !(((IxExpr) stmt.exp).ref instanceof ThisRef) && ((IxExpr) stmt.exp).ref.declaration instanceof ClassDecl)) {
@@ -253,12 +274,14 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                         "Expected field/var but received class reference");
             }
 
+            // If TypeKinds of elements do not match, TypeCheckingError.
             if (!eltType.compareType(stmtType)) {
                 this.reportTypeCheckingError(stmt.exp.posn,
                         "Type mismatch between array element type " + eltType.typeKind
                                 + " and expression type " + stmtType.typeKind);
             }
         } else {
+            // Error if attempting to index an array
             this.reportTypeCheckingError(stmt.posn,
                     "Cannot index non-array type identifier " + stmt.ref.declaration.type.typeKind);
         }
@@ -268,18 +291,24 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     public Object visitCallStmt(CallStmt stmt, Object arg){
         stmt.methodRef.visit(this, arg);
 
+        // Ensure reference is a MethodDecl
         if (stmt.methodRef.declaration instanceof MethodDecl) {
             MethodDecl md = (MethodDecl) stmt.methodRef.declaration;
 
             ExprList al = stmt.argList;
 
+            // If size of given argument list not the same as size of expected method parameter list, TypeCheckingError.
             if (al.size() != md.parameterDeclList.size()) {
                 this.reportTypeCheckingError(stmt.methodRef.posn,
                         "Method call expects " + md.parameterDeclList.size() + " parameters but provided " + al.size() + " parameters.");
             }
 
+            // Iterate through each parameter in both lists
             for (int i=0; i < md.parameterDeclList.size(); i++) {
+                // Retrieve the type of the element in the argument list at index i
                 TypeDenoter exprType = (TypeDenoter) al.get(i).visit(this, arg);
+
+                // If TypeKind of arglist element at i and paramlist element at i are different, TypeCheckingError.
                 if (!exprType.compareType(md.parameterDeclList.get(i).type)) {
                     this.reportTypeCheckingError(al.get(i).posn,
                             "Expected parameter of type " + md.parameterDeclList.get(i).type.typeKind
@@ -288,6 +317,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                 }
             }
         } else {
+            // Error if attempting to call a reference that isn't a method.
             this.reportIdentificationError(stmt.methodRef.posn,
                     "Cannot call non-method declaration " + stmt.methodRef.declaration.type.typeKind);
         }
@@ -296,8 +326,12 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     }
 
     public Object visitReturnStmt(ReturnStmt stmt, Object arg){
+        // If return statement has a result
         if (stmt.returnExpr != null) {
+            // Retrieve return type
             TypeDenoter returnType = (TypeDenoter) stmt.returnExpr.visit(this, arg);
+
+            // If given return type is not the same as the expected method return type, TypeCheckingError.
             MethodDecl md = (MethodDecl) arg;
             if (!md.type.compareType(returnType)) {
                 this.reportTypeCheckingError(stmt.returnExpr.posn,
@@ -310,13 +344,16 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     }
 
     public Object visitIfStmt(IfStmt stmt, Object arg){
+        // Retrieve type of IfStmt condition
         TypeDenoter condType = (TypeDenoter) stmt.cond.visit(this, arg);
 
+        // If condition not BOOLEAN, TypeCheckingError.
         if (condType.typeKind != TypeKind.BOOLEAN) {
             this.reportTypeCheckingError(stmt.cond.posn,
                     "If statement expects condition of type BOOLEAN but provided type " + condType.typeKind);
         }
 
+        // If thenStmt is just a VarDeclStmt, IdentificationError.
         if (stmt.thenStmt instanceof VarDeclStmt) {
             this.reportIdentificationError(((VarDeclStmt) stmt.thenStmt).varDecl.posn,
                     "Solitary variable declaration not allowed in scope to itself" );
@@ -324,25 +361,29 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
         stmt.thenStmt.visit(this, arg);
 
+        // If elseStmt exists
         if (stmt.elseStmt != null) {
+            // If body of elseStmt is just a VarDeclStmt, IdentificationError.
             if (stmt.elseStmt instanceof VarDeclStmt) {
                 this.reportIdentificationError(((VarDeclStmt) stmt.elseStmt).varDecl.posn,
                         "Solitary variable declaration not allowed in scope to itself" );
             }
-
             stmt.elseStmt.visit(this, arg);
         }
         return null;
     }
 
     public Object visitWhileStmt(WhileStmt stmt, Object arg){
+        // Retrieve type of WhileStmt condition
         TypeDenoter condType = (TypeDenoter) stmt.cond.visit(this, arg);
 
+        // If condition not BOOLEAN, TypeCheckingError.
         if (condType.typeKind != TypeKind.BOOLEAN) {
             this.reportTypeCheckingError(stmt.cond.posn,
                     "While loop expects condition of type BOOLEAN but provided type " + condType.typeKind);
         }
 
+        // If WhileStmt body is just a VarDeclStmt, IdentificationError.
         if (stmt.body instanceof VarDeclStmt) {
             this.reportIdentificationError(stmt.body.posn,
                     "Solitary variable declaration not allowed in scope to itself" );
@@ -364,17 +405,19 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         TypeDenoter type = (TypeDenoter) expr.expr.visit(this, arg);
 
         switch (expr.operator.spelling) {
-            case "-":
+            case "-":   // If operator "-"
+                // If type is INT, valid, else TypeCheckingError
                 if (type.typeKind == TypeKind.INT) {
-                    return new BaseType(TypeKind.INT, expr.posn);
+                    return type;
                 } else {
                     this.reportTypeCheckingError(expr.posn,
                             "Unary operator '-' expects type INT but provided type " + type.typeKind);
                 }
                 break;
-            case "!":
+            case "!":   // If operator "!"
+                // If type is BOOLEAN, valid, else TypeCheckingError
                 if (type.typeKind == TypeKind.BOOLEAN) {
-                    return new BaseType(TypeKind.BOOLEAN, expr.posn);
+                    return type;
                 } else {
                     this.reportTypeCheckingError(expr.posn,
                             "Unary operator '!' expects type BOOLEAN but provided type " + type.typeKind);
@@ -393,7 +436,8 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
         switch (expr.operator.spelling) {
             case "&&":
-            case "||":
+            case "||":  // If operator "&&" or "||"
+                // If types are the same and BOOLEAN, valid.
                 if (lType.typeKind == TypeKind.BOOLEAN && lType.compareType(rType)) {
                     return new BaseType(TypeKind.BOOLEAN, expr.posn);
                 }
@@ -401,7 +445,8 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             case ">":
             case ">=":
             case "<":
-            case "<=":
+            case "<=":  // If operator ">", ">=", "<", or "<="
+                // If types are same and INT, valid.
                 if (lType.typeKind == TypeKind.INT && lType.compareType(rType)) {
                     return new BaseType(TypeKind.BOOLEAN, expr.posn);
                 }
@@ -409,29 +454,35 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             case "+":
             case "-":
             case "*":
-            case "/":
+            case "/":   // If operator "+", "-", "*", or "/"
+                // If types are same and INT, valid.
                 if (lType.typeKind == TypeKind.INT && lType.compareType(rType)) {
                     return new BaseType(TypeKind.INT, expr.posn);
                 }
                 break;
             case "==":
-            case "!=":
+            case "!=":  // If operator "==" or "!="
                 if (!lType.compareType(rType)) {
+                    // If TypeKinds of elements do not match, TypeCheckingError (reported at end of switch/case).
                     break;
                 } else if (lType instanceof ClassType && !((ClassType) lType).className.spelling.equals(((ClassType) rType).className.spelling)) {
+                    // If TypeKind Class but Class names don't match, TypeCheckingError.
                     this.reportTypeCheckingError(expr.posn,
                             "Operator '" + expr.operator.spelling + "' cannot be applied to class types '" +
                                     ((ClassType) lType).className.spelling + "', " + ((ClassType) rType).className.spelling);
                     return new BaseType(TypeKind.ERROR, expr.posn);
                 } else if (lType.typeKind == TypeKind.UNSUPPORTED || lType.typeKind == TypeKind.ERROR) {
+                    // If TypeKind UNSUPPORTED/ERROR, return an ERROR type without reporting an ERROR.
                     return new BaseType(TypeKind.ERROR, expr.posn);
                 } else if (lType instanceof ArrayType && !((ArrayType) lType).eltType.compareType(((ArrayType) rType).eltType)) {
+                    // If TypeKinds of elements do not match, TypeCheckingError (reported at end of switch/case).
                     break;
                 }
                 return new BaseType(TypeKind.BOOLEAN, expr.posn);
             default:
         }
 
+        // Report TypeCheckingError and return Error Type.
         this.reportTypeCheckingError(expr.posn,
                 "Operator '" + expr.operator.spelling + "' cannot be applied to types '"
                         + lType.typeKind + "', '" + rType.typeKind + "'");
@@ -440,6 +491,8 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
     public Object visitRefExpr(RefExpr expr, Object arg){
         TypeDenoter refType = (TypeDenoter) expr.ref.visit(this, arg);
+
+        // If RefExpr returns a MethodDecl, invalid (only CallExpr should return MethodDecl)
         if (expr.ref.declaration instanceof MethodDecl) {
             this.reportTypeCheckingError(expr.ref.posn,
                     "Expected field/var but provided method reference");
@@ -452,16 +505,21 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         TypeDenoter refType = (TypeDenoter) ie.ref.visit(this, arg);
 
         if (refType instanceof ArrayType) {
+            // If indexing an ArrayType reference
+            // Get type of the index expression
             TypeDenoter ixExprType = (TypeDenoter) ie.ixExpr.visit(this, arg);
 
             if (ixExprType.typeKind != TypeKind.INT) {
+                // If type of the index expression is not INT
                 this.reportTypeCheckingError(ie.ixExpr.posn,
                         "Array index expects type INT but provided type " + ixExprType.typeKind);
                 return new BaseType(TypeKind.ERROR, ie.ixExpr.posn);
             }
 
+            // Return type of element
             return ((ArrayType) ie.ref.declaration.type).eltType;
         } else {
+            // Error if attempting to index non-array reference.
             this.reportTypeCheckingError(ie.posn,
                     "Cannot index non-array type identifier " + ie.ref.declaration.type.typeKind);
         }
@@ -472,20 +530,25 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     public Object visitCallExpr(CallExpr expr, Object arg){
         expr.functionRef.visit(this, arg);
 
+        // Ensure reference is a MethodDecl
         if (expr.functionRef.declaration instanceof MethodDecl) {
             MethodDecl md = (MethodDecl) expr.functionRef.declaration;
 
             ExprList al = expr.argList;
 
+            // If size of given argument list not the same as size of expected method parameter list, TypeCheckingError.
             if (al.size() != md.parameterDeclList.size()) {
                 this.reportTypeCheckingError(expr.functionRef.posn,
                         "Method call expects " + md.parameterDeclList.size() + " parameters but provided " + al.size() + " parameters.");
                 return new BaseType(TypeKind.ERROR, expr.posn);
             }
 
+            // Iterate through each parameter in both lists
             for (int i=0; i < md.parameterDeclList.size(); i++) {
+                // Retrieve the type of the element in the argument list at index i
                 TypeDenoter exprType = (TypeDenoter) al.get(i).visit(this, arg);
                 if (!exprType.compareType(md.parameterDeclList.get(i).type)) {
+                    // If TypeKind of arglist element at i and paramlist element at i are different, TypeCheckingError.
                     this.reportTypeCheckingError(al.get(i).posn,
                             "Expected parameter of type " + md.parameterDeclList.get(i).type.typeKind
                                     + " for method parameter " + i
@@ -496,6 +559,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
             return expr.functionRef.declaration.type;
         } else {
+            // Error if attempting to call a reference that isn't a method.
             this.reportIdentificationError(expr.functionRef.posn,
                     "Cannot call non-method declaration " + expr.functionRef.declaration.type.typeKind);
         }
@@ -527,6 +591,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     public Object visitThisRef(ThisRef ref, Object arg) {
         MemberDecl md = (MemberDecl) arg;
 
+        // If ThisRef in a static method, IdentificationError.
         if (md.isStatic) {
             this.reportIdentificationError(ref.posn, "Cannot reference `this` in static method " + md.name);
         }
@@ -567,6 +632,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                 decl = ((IdRef) currRef).id.declaration;
                 currRef.declaration = decl;
             } else if (currRef instanceof QualRef) {
+                // Visit to ensure id has an associated declaration!
                 ((QualRef) currRef).id.visit(this, arg);
                 decl = ((QualRef) currRef).id.declaration;
                 currRef.declaration = decl;
@@ -590,6 +656,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                     currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
+                    // Should only be able to reference objects of type class
                     this.reportIdentificationError(currQRef.posn,
                             "Cannot reference non-class type " + currQRef.id.spelling);
                     return new BaseType(TypeKind.ERROR, currQRef.posn);
@@ -603,6 +670,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                 currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
                 currQRef.declaration = currQRef.id.declaration;
 
+                // Handles trying to access class with a static ref in itself
                 if (context instanceof MethodDecl && context.isStatic && !((MemberDecl) currQRef.declaration).isStatic) {
                     this.reportIdentificationError(currQRef.posn,
                             "Cannot access non-static member " + currQRef.id.spelling + " in static method " + context.name);
@@ -620,17 +688,20 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                     currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
+                    // Should only be able to reference objects of type class
                     this.reportIdentificationError(currQRef.posn,
                             "Cannot reference non-class type " + currQRef.id.spelling);
                     return new BaseType(TypeKind.ERROR, currQRef.posn);
                 }
             } else {
+                // General Error if found Declaration not valid/null
                 this.reportIdentificationError(currQRef.posn,
                         "Cannot resolve symbol '" + currQRef.id.spelling + "' in qualified reference");
                 return new BaseType(TypeKind.ERROR, currQRef.posn);
             }
         }
 
+        // Return declaration for QualRef
         return qr.id.declaration.type;
     }
 
@@ -642,8 +713,11 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
     public Object visitIdentifier(Identifier id, Object arg){
         Declaration context = (Declaration) arg;
+
+        // Find declaration corresponding to Id
         id.declaration = si.findDeclaration(id, context);
 
+        // If id is null, not found, return ErrorType.
         if (id.declaration == null) {
             return new BaseType(TypeKind.ERROR, id.posn);
         }

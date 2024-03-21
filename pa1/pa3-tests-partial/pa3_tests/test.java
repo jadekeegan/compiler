@@ -10,10 +10,11 @@ class TestClass {
          * VALID
          */
 
+        int y = -t;
+
         // QualifiedRef
         x = OtherClass.opubstatfield;
         o = new OtherClass();
-        o = o.testThisMethod();
     }
 
 
