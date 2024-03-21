@@ -1,6 +1,5 @@
 AST Changes:
 - Add NullLiteral class and updated Visitor interface and ASTDisplay class accordingly.
-- Add NullRef class and updated Visitor interface and ASTDisplay class accordingly.
 - Add IDTable class to implement the HashMap of Strings and Declarations and its functionality.
 - Add ScopedIdentification class to implement the Stack of IDTables and its functionality.
 - Add and implement Identification class which implements the Visitor interface to traverse for identification.
@@ -10,3 +9,4 @@ AST Changes:
 - Make visit methods inside visitFieldDecl and visitMethodDecl take corresponding FieldDecl/MethodDecl as context.
 - Add Declaration `declaration` field to Reference class to give context for TypeChecking.
 - Add `NULL` TypeKind to handle NullLiterals.
+- Add `compareType` method to TypeDenoter to compare TypeKinds of TypeDenoters.

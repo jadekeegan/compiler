@@ -3,42 +3,30 @@ package miniJava.ContextualAnalysis;
 import miniJava.ErrorReporter;
 import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.AbstractSyntaxTrees.*;
+import miniJava.SyntacticAnalyzer.SourcePosition;
 
-import java.sql.Ref;
+import javax.xml.transform.Source;
 import java.util.Stack;
 
-public class Identification implements Visitor<Object,Object> {
+public class ContextualAnalysis implements Visitor<Object,Object> {
     private ErrorReporter _errors;
     private ScopedIdentification si;
 
-    public Identification(ErrorReporter errors) {
+    public ContextualAnalysis(ErrorReporter errors) {
         this._errors = errors;
         this.si = new ScopedIdentification(_errors);
     }
 
     public void parse( Package prog ) {
-        try {
-            visitPackage(prog,null);
-        } catch( IdentificationError e ) {
-            _errors.reportError(e.toString());
-        }
+        visitPackage(prog,null);
     }
 
-    class IdentificationError extends Error {
-        private static final long serialVersionUID = -441346906191470192L;
-        private String _errMsg;
+    public void reportIdentificationError(SourcePosition posn, String e) {
+        this._errors.reportError(posn, "(IdentificationError) " + e + ".");
+    }
 
-        public IdentificationError(AST ast, String errMsg) {
-            super();
-            this._errMsg = ast.posn == null
-                    ? "*** " + errMsg
-                    : "*** " + ast.posn.toString() + ": " + errMsg;
-        }
-
-        @Override
-        public String toString() {
-            return _errMsg;
-        }
+    public void reportTypeCheckingError(SourcePosition posn, String e) {
+        this._errors.reportError(posn, "(TypeCheckingError) " + e + ".");
     }
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -198,14 +186,18 @@ public class Identification implements Visitor<Object,Object> {
         if ((stmt.initExp instanceof CallExpr && !(((CallExpr) stmt.initExp).functionRef instanceof ThisRef) && ((CallExpr) stmt.initExp).functionRef.declaration instanceof ClassDecl)
                 || (stmt.initExp instanceof RefExpr && !(((RefExpr) stmt.initExp).ref instanceof ThisRef) && ((RefExpr) stmt.initExp).ref.declaration instanceof ClassDecl)
                 || (stmt.initExp instanceof IxExpr && !(((IxExpr) stmt.initExp).ref instanceof ThisRef) && ((IxExpr) stmt.initExp).ref.declaration instanceof ClassDecl)) {
-            this._errors.reportError("Identification Error: Invalid class reference (expected field/var).");
+            this.reportIdentificationError(stmt.initExp.posn,
+                    "Expected field/var but provided class reference");
         }
 
         if (!varType.compareType(stmtType)) {
-            // want to compare actual types?
-            this._errors.reportError("Type Checking Error: Type mismatch between variable declaration of type " + varType.typeKind + " and expression type " + stmtType.typeKind);
+            this.reportTypeCheckingError(stmt.initExp.posn,
+                    "Type mismatch between variable declaration of type " + varType.typeKind
+                            + " and expression type " + stmtType.typeKind);
         } else if (varType instanceof ClassType && !((ClassType) varType).className.spelling.equals(((ClassType) stmtType).className.spelling)) {
-            this._errors.reportError("Type Checking Error: Class type mismatch for equality comparison.");
+            this.reportTypeCheckingError(stmt.initExp.posn,
+                    "Type mismatch between variable declaration of class " + ((ClassType) varType).className.spelling
+                            + " and reference of class " + ((ClassType) stmtType).className);
         }
 
         // After varDecl and associated Expression visited, varDecl has been initialized.
@@ -224,11 +216,14 @@ public class Identification implements Visitor<Object,Object> {
         if ((stmt.val instanceof CallExpr && !(((CallExpr) stmt.val).functionRef instanceof ThisRef) && ((CallExpr) stmt.val).functionRef.declaration instanceof ClassDecl)
                 || (stmt.val instanceof RefExpr && !(((RefExpr) stmt.val).ref instanceof ThisRef) && ((RefExpr) stmt.val).ref.declaration instanceof ClassDecl)
                 || (stmt.val instanceof IxExpr && !(((IxExpr) stmt.val).ref instanceof ThisRef) && ((IxExpr) stmt.val).ref.declaration instanceof ClassDecl)) {
-            this._errors.reportError("Identification Error: Invalid class reference (expected field/var).");
+            this.reportIdentificationError(stmt.val.posn,
+                    "Expected field/var but received class reference");
         }
 
         if (!refType.compareType(stmtType)) {
-            this._errors.reportError("Type Checking Error: Type mismatch between variable assignment of type " + refType.typeKind + " and expression type " + stmtType.typeKind);
+            this.reportTypeCheckingError(stmt.val.posn,
+                    "Type mismatch between variable assignment of type " + refType.typeKind
+                            + " and expression type " + stmtType.typeKind);
         }
         return null;
     }
@@ -240,7 +235,8 @@ public class Identification implements Visitor<Object,Object> {
             TypeDenoter ixExprType = (TypeDenoter) stmt.ix.visit(this, arg);
 
             if (ixExprType.typeKind != TypeKind.INT) {
-                this._errors.reportError("Type Checking Error: Index is not of type INT.");
+                this.reportTypeCheckingError(stmt.ix.posn,
+                        "Array index expects type INT but provided type " + ixExprType.typeKind);
             }
 
             TypeDenoter eltType = ((ArrayType) stmt.ref.declaration.type).eltType;
@@ -253,14 +249,18 @@ public class Identification implements Visitor<Object,Object> {
             if ((stmt.exp instanceof CallExpr && !(((CallExpr) stmt.exp).functionRef instanceof ThisRef) && ((CallExpr) stmt.exp).functionRef.declaration instanceof ClassDecl)
                     || (stmt.exp instanceof RefExpr && !(((RefExpr) stmt.exp).ref instanceof ThisRef) && ((RefExpr) stmt.exp).ref.declaration instanceof ClassDecl)
                     || (stmt.exp instanceof IxExpr && !(((IxExpr) stmt.exp).ref instanceof ThisRef) && ((IxExpr) stmt.exp).ref.declaration instanceof ClassDecl)) {
-                this._errors.reportError("Identification Error: Invalid class reference (expected field/var).");
+                this.reportIdentificationError(stmt.exp.posn,
+                        "Expected field/var but received class reference");
             }
 
             if (!eltType.compareType(stmtType)) {
-                this._errors.reportError("Type Checking Error: Type mismatch between array element type " + eltType.typeKind + " and expression type " + stmtType.typeKind);
+                this.reportTypeCheckingError(stmt.exp.posn,
+                        "Type mismatch between array element type " + eltType.typeKind
+                                + " and expression type " + stmtType.typeKind);
             }
         } else {
-            this._errors.reportError("Type Checking Error: Invalid attempt to index a non-array type identifier.");
+            this.reportTypeCheckingError(stmt.posn,
+                    "Cannot index non-array type identifier " + stmt.ref.declaration.type.typeKind);
         }
         return null;
     }
@@ -274,17 +274,22 @@ public class Identification implements Visitor<Object,Object> {
             ExprList al = stmt.argList;
 
             if (al.size() != md.parameterDeclList.size()) {
-                this._errors.reportError("Type Checking Error: Parameter list length mismatch.");
+                this.reportTypeCheckingError(stmt.methodRef.posn,
+                        "Method call expects " + md.parameterDeclList.size() + " parameters but provided " + al.size() + " parameters.");
             }
 
             for (int i=0; i < md.parameterDeclList.size(); i++) {
                 TypeDenoter exprType = (TypeDenoter) al.get(i).visit(this, arg);
                 if (!exprType.compareType(md.parameterDeclList.get(i).type)) {
-                    this._errors.reportError("Type Checking Error: Parameter type mismatch for parameter at index " + i);
+                    this.reportTypeCheckingError(al.get(i).posn,
+                            "Expected parameter of type " + md.parameterDeclList.get(i).type.typeKind
+                                    + " for method parameter " + i
+                                    + " but provided parameter of type " + exprType.typeKind);
                 }
             }
         } else {
-            this._errors.reportError("Type Checking Error: Attempt to call a non-method declaration.");
+            this.reportIdentificationError(stmt.methodRef.posn,
+                    "Cannot call non-method declaration " + stmt.methodRef.declaration.type.typeKind);
         }
 
         return null;
@@ -295,7 +300,9 @@ public class Identification implements Visitor<Object,Object> {
             TypeDenoter returnType = (TypeDenoter) stmt.returnExpr.visit(this, arg);
             MethodDecl md = (MethodDecl) arg;
             if (!md.type.compareType(returnType)) {
-                this._errors.reportError("Type Checking Error: Return type " + returnType.typeKind + " does not match method's expected return type " + md.type.typeKind);
+                this.reportTypeCheckingError(stmt.returnExpr.posn,
+                        "Method expects return type " + md.type.typeKind
+                                + " but provided return type " + returnType.typeKind);
             }
         }
 
@@ -303,36 +310,42 @@ public class Identification implements Visitor<Object,Object> {
     }
 
     public Object visitIfStmt(IfStmt stmt, Object arg){
-        TypeDenoter type = (TypeDenoter) stmt.cond.visit(this, arg);
+        TypeDenoter condType = (TypeDenoter) stmt.cond.visit(this, arg);
 
-        if (type.typeKind != TypeKind.BOOLEAN) {
-            this._errors.reportError("Type Checking Error: Invalid type " + type.typeKind + " for if loop condition (expected BOOLEAN).");
+        if (condType.typeKind != TypeKind.BOOLEAN) {
+            this.reportTypeCheckingError(stmt.cond.posn,
+                    "If statement expects condition of type BOOLEAN but provided type " + condType.typeKind);
         }
 
         if (stmt.thenStmt instanceof VarDeclStmt) {
-            this._errors.reportError("IdentificationError: Solitary variable declaration not allowed in scope to itself.");
+            this.reportIdentificationError(((VarDeclStmt) stmt.thenStmt).varDecl.posn,
+                    "Solitary variable declaration not allowed in scope to itself" );
         }
 
         stmt.thenStmt.visit(this, arg);
 
         if (stmt.elseStmt != null) {
             if (stmt.elseStmt instanceof VarDeclStmt) {
-                this._errors.reportError("IdentificationError: Solitary variable declaration not allowed in scope to itself.");
+                this.reportIdentificationError(((VarDeclStmt) stmt.elseStmt).varDecl.posn,
+                        "Solitary variable declaration not allowed in scope to itself" );
             }
+
             stmt.elseStmt.visit(this, arg);
         }
         return null;
     }
 
     public Object visitWhileStmt(WhileStmt stmt, Object arg){
-        TypeDenoter type = (TypeDenoter) stmt.cond.visit(this, arg);
+        TypeDenoter condType = (TypeDenoter) stmt.cond.visit(this, arg);
 
-        if (type.typeKind != TypeKind.BOOLEAN) {
-            this._errors.reportError("Type Checking Error: Invalid type " + type.typeKind + " for while loop condition (expected BOOLEAN).");
+        if (condType.typeKind != TypeKind.BOOLEAN) {
+            this.reportTypeCheckingError(stmt.cond.posn,
+                    "While loop expects condition of type BOOLEAN but provided type " + condType.typeKind);
         }
 
         if (stmt.body instanceof VarDeclStmt) {
-            this._errors.reportError("IdentificationError: Solitary variable declaration not allowed in scope to itself.");
+            this.reportIdentificationError(stmt.body.posn,
+                    "Solitary variable declaration not allowed in scope to itself" );
         }
         stmt.body.visit(this, arg);
 
@@ -355,14 +368,16 @@ public class Identification implements Visitor<Object,Object> {
                 if (type.typeKind == TypeKind.INT) {
                     return new BaseType(TypeKind.INT, expr.posn);
                 } else {
-                    this._errors.reportError("Type Checking Error: Invalid type " + type.typeKind + " for unary operator '-' (expected INT).");
+                    this.reportTypeCheckingError(expr.posn,
+                            "Unary operator '-' expects type INT but provided type " + type.typeKind);
                 }
                 break;
             case "!":
                 if (type.typeKind == TypeKind.BOOLEAN) {
                     return new BaseType(TypeKind.BOOLEAN, expr.posn);
                 } else {
-                    this._errors.reportError("Type Checking Error: Invalid type " + type.typeKind + " for unary operator '!' (expected BOOLEAN).");
+                    this.reportTypeCheckingError(expr.posn,
+                            "Unary operator '!' expects type BOOLEAN but provided type " + type.typeKind);
                 }
                 break;
 
@@ -381,8 +396,6 @@ public class Identification implements Visitor<Object,Object> {
             case "||":
                 if (lType.typeKind == TypeKind.BOOLEAN && lType.compareType(rType)) {
                     return new BaseType(TypeKind.BOOLEAN, expr.posn);
-                } else {
-                    this._errors.reportError("Type Checking Error: Invalid types for conjunction/disjunction.");
                 }
                 break;
             case ">":
@@ -391,8 +404,6 @@ public class Identification implements Visitor<Object,Object> {
             case "<=":
                 if (lType.typeKind == TypeKind.INT && lType.compareType(rType)) {
                     return new BaseType(TypeKind.BOOLEAN, expr.posn);
-                } else {
-                    this._errors.reportError("Type Checking Error: Invalid types for integer comparison (excluding ==/!=).");
                 }
                 break;
             case "+":
@@ -401,34 +412,37 @@ public class Identification implements Visitor<Object,Object> {
             case "/":
                 if (lType.typeKind == TypeKind.INT && lType.compareType(rType)) {
                     return new BaseType(TypeKind.INT, expr.posn);
-                } else {
-                    this._errors.reportError("Type Checking Error: Invalid types for arithmetic expression.");
                 }
                 break;
             case "==":
             case "!=":
                 if (!lType.compareType(rType)) {
-                    this._errors.reportError("Type Checking Error: Type mismatch for equality comparison.");
                     break;
                 } else if (lType instanceof ClassType && !((ClassType) lType).className.spelling.equals(((ClassType) rType).className.spelling)) {
-                    this._errors.reportError("Type Checking Error: Class type mismatch for equality comparison.");
-                    break;
+                    this.reportTypeCheckingError(expr.posn,
+                            "Operator '" + expr.operator.spelling + "' cannot be applied to class types '" +
+                                    ((ClassType) lType).className.spelling + "', " + ((ClassType) rType).className.spelling);
+                    return new BaseType(TypeKind.ERROR, expr.posn);
                 } else if (lType.typeKind == TypeKind.UNSUPPORTED || lType.typeKind == TypeKind.ERROR) {
                     return new BaseType(TypeKind.ERROR, expr.posn);
-                } else if (lType.typeKind == TypeKind.ARRAY && ((ArrayType) lType).eltType.compareType(((ArrayType) rType).eltType)) {
-                    return new BaseType(TypeKind.BOOLEAN, expr.posn);
+                } else if (lType instanceof ArrayType && !((ArrayType) lType).eltType.compareType(((ArrayType) rType).eltType)) {
+                    break;
                 }
                 return new BaseType(TypeKind.BOOLEAN, expr.posn);
             default:
         }
 
+        this.reportTypeCheckingError(expr.posn,
+                "Operator '" + expr.operator.spelling + "' cannot be applied to types '"
+                        + lType.typeKind + "', '" + rType.typeKind + "'");
         return new BaseType(TypeKind.ERROR, expr.posn);
     }
 
     public Object visitRefExpr(RefExpr expr, Object arg){
         TypeDenoter refType = (TypeDenoter) expr.ref.visit(this, arg);
         if (expr.ref.declaration instanceof MethodDecl) {
-            this._errors.reportError("Type Checking Error: Invalid attempt to reference a method when field/var expected.");
+            this.reportTypeCheckingError(expr.ref.posn,
+                    "Expected field/var but provided method reference");
             return new BaseType(TypeKind.ERROR, expr.posn);
         }
         return refType;
@@ -441,13 +455,15 @@ public class Identification implements Visitor<Object,Object> {
             TypeDenoter ixExprType = (TypeDenoter) ie.ixExpr.visit(this, arg);
 
             if (ixExprType.typeKind != TypeKind.INT) {
-                this._errors.reportError("Type Checking Error: Index is not of type INT.");
-                return new BaseType(TypeKind.ERROR, ie.ref.posn);
+                this.reportTypeCheckingError(ie.ixExpr.posn,
+                        "Array index expects type INT but provided type " + ixExprType.typeKind);
+                return new BaseType(TypeKind.ERROR, ie.ixExpr.posn);
             }
 
             return ((ArrayType) ie.ref.declaration.type).eltType;
         } else {
-            this._errors.reportError("Type Checking Error: Invalid attempt to index a non-array type identifier.");
+            this.reportTypeCheckingError(ie.posn,
+                    "Cannot index non-array type identifier " + ie.ref.declaration.type.typeKind);
         }
 
         return new BaseType(TypeKind.ERROR, ie.ref.posn);
@@ -462,21 +478,26 @@ public class Identification implements Visitor<Object,Object> {
             ExprList al = expr.argList;
 
             if (al.size() != md.parameterDeclList.size()) {
-                this._errors.reportError("Type Checking Error: Parameter list length mismatch.");
+                this.reportTypeCheckingError(expr.functionRef.posn,
+                        "Method call expects " + md.parameterDeclList.size() + " parameters but provided " + al.size() + " parameters.");
                 return new BaseType(TypeKind.ERROR, expr.posn);
             }
 
             for (int i=0; i < md.parameterDeclList.size(); i++) {
                 TypeDenoter exprType = (TypeDenoter) al.get(i).visit(this, arg);
                 if (!exprType.compareType(md.parameterDeclList.get(i).type)) {
-                    this._errors.reportError("Type Checking Error: Parameter type mismatch for parameter at index " + i);
-                    return new BaseType(TypeKind.ERROR, expr.posn);
+                    this.reportTypeCheckingError(al.get(i).posn,
+                            "Expected parameter of type " + md.parameterDeclList.get(i).type.typeKind
+                                    + " for method parameter " + i
+                                    + " but provided parameter of type " + exprType.typeKind);
+                    return new BaseType(TypeKind.ERROR, al.get(i).posn);
                 }
             }
 
             return expr.functionRef.declaration.type;
         } else {
-            this._errors.reportError("Type Checking Error: Attempt to call a non-method declaration.");
+            this.reportIdentificationError(expr.functionRef.posn,
+                    "Cannot call non-method declaration " + expr.functionRef.declaration.type.typeKind);
         }
 
         return new BaseType(TypeKind.ERROR, expr.posn);
@@ -507,7 +528,7 @@ public class Identification implements Visitor<Object,Object> {
         MemberDecl md = (MemberDecl) arg;
 
         if (md.isStatic) {
-            this._errors.reportError("IdentificationError: Invalid reference to `this` in a static method.");
+            this.reportIdentificationError(ref.posn, "Cannot reference `this` in static method " + md.name);
         }
 
         ref.declaration = md.associatedClass;
@@ -569,7 +590,8 @@ public class Identification implements Visitor<Object,Object> {
                     currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
-                    this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+                    this.reportIdentificationError(currQRef.posn,
+                            "Cannot reference non-class type " + currQRef.id.spelling);
                     return new BaseType(TypeKind.ERROR, currQRef.posn);
                 }
             } else if (decl instanceof ClassDecl) {
@@ -582,7 +604,8 @@ public class Identification implements Visitor<Object,Object> {
                 currQRef.declaration = currQRef.id.declaration;
 
                 if (context instanceof MethodDecl && context.isStatic && !((MemberDecl) currQRef.declaration).isStatic) {
-                    _errors.reportError("IdentificationError: Invalid attempt to access a non-static member in a static method.");
+                    this.reportIdentificationError(currQRef.posn,
+                            "Cannot access non-static member " + currQRef.id.spelling + " in static method " + context.name);
                 }
             } else if (decl instanceof MemberDecl) {
                 MemberDecl md = (MemberDecl) decl;
@@ -597,23 +620,19 @@ public class Identification implements Visitor<Object,Object> {
                     currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
-                    this._errors.reportError("IdentificationError: Invalid attempt to reference a non-class type identifier.");
+                    this.reportIdentificationError(currQRef.posn,
+                            "Cannot reference non-class type " + currQRef.id.spelling);
                     return new BaseType(TypeKind.ERROR, currQRef.posn);
                 }
             } else {
-                this._errors.reportError("IdentificationError: Unable to resolve reference.");
-                return new BaseType(TypeKind.ERROR, currRef.posn);
+                this.reportIdentificationError(currQRef.posn,
+                        "Cannot resolve symbol '" + currQRef.id.spelling + "' in qualified reference");
+                return new BaseType(TypeKind.ERROR, currQRef.posn);
             }
         }
 
         return qr.id.declaration.type;
     }
-
-    /// uyhhhhhhjlkjfks
-    public Object visitNullRef(NullRef nr, Object arg) {
-        return null;
-    }
-
 
     ///////////////////////////////////////////////////////////////////////////////
     //

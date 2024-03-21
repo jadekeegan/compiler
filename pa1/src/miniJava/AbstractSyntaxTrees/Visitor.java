@@ -50,7 +50,6 @@ public interface Visitor<ArgType,ResultType> {
     public ResultType visitThisRef(ThisRef ref, ArgType arg);
     public ResultType visitIdRef(IdRef ref, ArgType arg);
     public ResultType visitQRef(QualRef ref, ArgType arg);
-  public ResultType visitNullRef(NullRef nullRef, ArgType arg);
 
   // Terminals
     public ResultType visitIdentifier(Identifier id, ArgType arg);

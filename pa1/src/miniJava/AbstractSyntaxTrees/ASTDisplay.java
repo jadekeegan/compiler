@@ -337,12 +337,6 @@ public class ASTDisplay implements Visitor<String,Object> {
     	qr.ref.visit(this, indent(arg));
 	    return null;
     }
-
-    public Object visitNullRef(NullRef nr, String arg) {
-        show(arg,nr);
-        return null;
-    }
-      
     
 	///////////////////////////////////////////////////////////////////////////////
 	//

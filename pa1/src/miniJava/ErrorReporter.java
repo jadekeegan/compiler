@@ -39,11 +39,10 @@ public class ErrorReporter {
 	
 	public void reportError(SourcePosition position, String ...error) {
 		StringBuilder sb = new StringBuilder();
-		
+
+		sb.append(position.toString()).append(": ");
 		for(String s : error)
 			sb.append(s);
-
-		sb.append(" on ").append(position.toString());
 		
 		_errorQueue.add(sb.toString());
 	}

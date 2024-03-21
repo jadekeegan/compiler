@@ -2,7 +2,7 @@ package miniJava;
 
 import java.io.FileInputStream;
 
-import miniJava.ContextualAnalysis.Identification;
+import miniJava.ContextualAnalysis.ContextualAnalysis;
 import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.SyntacticAnalyzer.Scanner;
 import miniJava.AbstractSyntaxTrees.Package;
@@ -39,16 +39,18 @@ public class Compiler {
 		if (_errors.hasErrors()) {
 			System.out.println("Error");
 			_errors.outputErrors();
+			System.exit(1);
 		}
 
-		Identification identification = new Identification(_errors);
+		ContextualAnalysis identification = new ContextualAnalysis(_errors);
 		identification.parse(ASTPackage);
 
 		if (_errors.hasErrors()) {
 			System.out.println("Error");
 			_errors.outputErrors();
-		} else {
-			System.out.println("Success");
+			System.exit(1);
 		}
+
+		System.out.println("Success");
 	}
 }

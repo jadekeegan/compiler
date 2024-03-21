@@ -2,6 +2,7 @@ package miniJava.ContextualAnalysis;
 
 import miniJava.AbstractSyntaxTrees.*;
 import miniJava.ErrorReporter;
+import miniJava.SyntacticAnalyzer.SourcePosition;
 import miniJava.SyntacticAnalyzer.Token;
 import miniJava.SyntacticAnalyzer.TokenType;
 
@@ -11,17 +12,12 @@ public class ScopedIdentification {
     public Stack<IDTable> si = new Stack<>();
     private ErrorReporter _errors;
 
-    public static void main(String[] args) {
-        ScopedIdentification p = new ScopedIdentification(new ErrorReporter());
-        p.next = p;
-        p.next.next.x = 3;
-    }
-
-    public ScopedIdentification next;
-    private int x;
-
     ScopedIdentification(ErrorReporter _errors) {
         this._errors = _errors;
+    }
+
+    public void reportIdentificationError(SourcePosition posn, String e) {
+        this._errors.reportError(posn, "(IdentificationError) " + e + ".");
     }
 
     public void openScope() {
@@ -42,7 +38,8 @@ public class ScopedIdentification {
             while (siCopy.size() > 2) {
                 IDTable curr = siCopy.pop();
                 if (curr.containsKey(id)) {
-                    this._errors.reportError("IdentificationError: IDTable already contains Identifier.");
+                    this.reportIdentificationError(decl.posn,
+                            "Variable '" + id + "' is already defined in scope");
                     break;
                 }
             }
@@ -54,18 +51,21 @@ public class ScopedIdentification {
             // Ensure class exists when declaring new Var/Param
             if (decl instanceof LocalDecl) {
                 LocalDecl ld = (LocalDecl) decl;
+
                 if (decl.type.typeKind == TypeKind.CLASS) {
                     ClassType ct = (ClassType) ld.type;
 
                     if (!si.get(0).containsKey(ct.className.spelling)) {
-                        this._errors.reportError("IdentificationError: Undeclared class for identifier declaration.");
+                        this.reportIdentificationError(decl.posn,
+                                "Cannot resolve symbol '" + ct.className.spelling + "' for identifier declaration");
                     }
                 }
             }
 
             // if top IDTable contains ID already, throw IDError
             if (top.containsKey(id)) {
-                this._errors.reportError("IdentificationError: IDTable already contains Identifier.");
+                this.reportIdentificationError(decl.posn,
+                        "Variable '" + id + "' is already defined in scope");
             } else {
                 top.put(id, decl);
             }
@@ -96,13 +96,16 @@ public class ScopedIdentification {
             }
         }
 
+        // Need to get position for these ! (or do error checking outside of this method)
         if (result == null) {
-            this._errors.reportError("IdentificationError: Unable to resolve reference to '" + id.spelling + "' in class " + cd.name);
+            this.reportIdentificationError(id.posn,
+                    "(IdentificationError) Cannot resolve symbol '" + id.spelling + "' in class " + cd.name + ".");
         } else if (result.isPrivate) {
             if (((MethodDecl) context).associatedClass.name.equals(result.associatedClass.name)) {
                 return result;
             }
-            this._errors.reportError("IdentificationError: Invalid attempt to reference private identifier '" + id.spelling + "' in class " + cd.name);
+            this.reportIdentificationError(id.posn,
+                    "(IdentificationError) Invalid attempt to reference private identifier '" + id.spelling + "' in class " + cd.name);
         }
 
         return result;
@@ -122,18 +125,22 @@ public class ScopedIdentification {
         }
 
         if (result == null) {
-            _errors.reportError("IdentificationError: Unable to resolve identifier.");
+            this.reportIdentificationError(id.posn,
+                    "(IdentificationError) Cannot resolve symbol '" + id.spelling + "'.");
         } else if (result instanceof MemberDecl && ((MemberDecl) result).isPrivate) {
-            _errors.reportError("IdentificationError: Invalid attempt to access a private identifier.");
+            this.reportIdentificationError(id.posn,
+                    "(IdentificationError) Cannot reference private identifier '" + result.name + "'.");
         } else if (result instanceof VarDecl && !((VarDecl) result).isInitialized) {
-            _errors.reportError("IdentificationError: Invalid attempt to access uninitialized variable " + result.name);
+            this.reportIdentificationError(id.posn,
+                    "(IdentificationError) Cannot reference uninitialized variable " + result.name);
         } else if (result instanceof MemberDecl && context instanceof MethodDecl && ((MethodDecl) context).isStatic && !((MemberDecl) result).isStatic) {
             MethodDecl md = (MethodDecl) context;
             if (md.associatedClass.name.equals(((MemberDecl) result).associatedClass.name)) {
                 return result;
             }
 
-            _errors.reportError("IdentificationError: Invalid attempt to access a non-static member in a static method.");
+            this.reportIdentificationError(id.posn,
+                    "(IdentificationError) Cannot access non-static member " + result.name + " in static method " + context.name);
         }
 
         return result;
