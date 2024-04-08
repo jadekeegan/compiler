@@ -7,6 +7,6 @@ AST Changes:
 - Add boolean `isInitialized` field for VarDecl to determine if it is initialized (specifically for the int x = x + 1 case, for example).
 - Add ClassDecl `associatedClass` field for MemberDecl to give context.
 - Make visit methods inside visitFieldDecl and visitMethodDecl take corresponding FieldDecl/MethodDecl as context.
-- Add Declaration `declaration` field to Reference class to give context for TypeChecking.
+- Add Declaration `declaration` field to Reference class to give context for TypeChecking (helps with fewer type casts).
 - Add `NULL` TypeKind to handle NullLiterals.
 - Add `compareType` method to TypeDenoter to compare TypeKinds of TypeDenoters.

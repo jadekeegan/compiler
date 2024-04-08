@@ -15,6 +15,10 @@ abstract public class TypeDenoter extends AST {
     }
 
     public boolean compareType(TypeDenoter t) {
+        if (this.typeKind == TypeKind.CLASS && t.typeKind == TypeKind.NULL
+                || this.typeKind == TypeKind.NULL && t.typeKind == TypeKind.CLASS) {
+            return true;
+        }
         return this.typeKind == t.typeKind;
     }
     

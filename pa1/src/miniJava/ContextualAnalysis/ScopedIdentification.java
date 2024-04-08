@@ -135,7 +135,7 @@ public class ScopedIdentification {
                     "(IdentificationError) Cannot reference uninitialized variable " + result.name);
         } else if (result instanceof MemberDecl && context instanceof MethodDecl && ((MethodDecl) context).isStatic && !((MemberDecl) result).isStatic) {
             MethodDecl md = (MethodDecl) context;
-            if (md.associatedClass.name.equals(((MemberDecl) result).associatedClass.name)) {
+            if (result.type.typeKind == TypeKind.CLASS && md.associatedClass.name.equals(((MemberDecl) result).associatedClass.name)) {
                 return result;
             }
 
