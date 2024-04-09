@@ -3,7 +3,7 @@ package miniJava.CodeGeneration.x64.ISA;
 import java.util.Map;
 
 import miniJava.CodeGeneration.x64.Instruction;
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 import miniJava.CodeGeneration.x64.x64;
 
 import java.util.Collections;
@@ -13,7 +13,7 @@ public abstract class SimpleMathInstruction extends Instruction {
 	abstract protected SimpleMathOp _thisOp();
 	
 	// rm,r variants
-	public SimpleMathInstruction(ModRMSIB modrmsib) {
+	public SimpleMathInstruction(R modrmsib) {
 		byte[] modrmsibBytes = modrmsib.getBytes();
 		importREX(modrmsib);
 		opcodeBytes.write(_RegRegOpcode.get(_thisOp()));
@@ -21,7 +21,7 @@ public abstract class SimpleMathInstruction extends Instruction {
 	}
 	
 	// do we have an immediate afterwards?
-	public SimpleMathInstruction(ModRMSIB modrmsib, int imm) {
+	public SimpleMathInstruction(R modrmsib, int imm) {
 		//rexW = true;
 		modrmsib.SetRegR(x64.mod543ToReg(_thisOp().idx));
 		byte[] modrmsibBytes = modrmsib.getBytes();
@@ -38,7 +38,7 @@ public abstract class SimpleMathInstruction extends Instruction {
 	}
 	
 	// manually specify rex
-	public SimpleMathInstruction(ModRMSIB modrmsib, int imm, boolean rexW) {
+	public SimpleMathInstruction(R modrmsib, int imm, boolean rexW) {
 		this(modrmsib,imm);
 		this.rexW = rexW;
 	}

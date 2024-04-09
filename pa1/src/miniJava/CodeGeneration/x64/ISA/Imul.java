@@ -1,13 +1,13 @@
 package miniJava.CodeGeneration.x64.ISA;
 
 import miniJava.CodeGeneration.x64.Instruction;
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 import miniJava.CodeGeneration.x64.Reg;
 import miniJava.CodeGeneration.x64.x64;
 
 public class Imul extends Instruction {
 	// imul rm, where RDX:RAX:= RAX * rm
-	public Imul(ModRMSIB rm) {
+	public Imul(R rm) {
 		rm.SetRegR(x64.mod543ToReg(5));
 		opcodeBytes.write(0xF7);
 		byte[] rmsib = rm.getBytes();
@@ -16,7 +16,7 @@ public class Imul extends Instruction {
 	}
 	
 	// imul r,rm, where r:= r * rm
-	public Imul(Reg r, ModRMSIB rm) {
+	public Imul(Reg r, R rm) {
 		opcodeBytes.write(0x0F);
 		opcodeBytes.write(0xAF);
 		rm.SetRegR(r);
@@ -26,7 +26,7 @@ public class Imul extends Instruction {
 	}
 	
 	// imul r,rm,imm, where r:= rm * imm
-	public Imul(Reg r, ModRMSIB rm, int imm) {
+	public Imul(Reg r, R rm, int imm) {
 		rm.SetRegR(r);
 		byte[] rmsib = rm.getBytes();
 		importREX(rm);

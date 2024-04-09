@@ -40,7 +40,7 @@ public abstract class Instruction {
 		return (byte)((4 << 4) | (rexW ? 1 << 3 : 0) | (rexR ? 1 << 2 : 0) | (rexX ? 1 << 1 : 0) | (rexB ? 1 : 0));
 	}
 	
-	protected void importREX(ModRMSIB rm64) {
+	protected void importREX(R rm64) {
 		rexW = rexW || rm64.getRexW();
 		rexR = rexR || rm64.getRexR();
 		rexX = rexX || rm64.getRexX();

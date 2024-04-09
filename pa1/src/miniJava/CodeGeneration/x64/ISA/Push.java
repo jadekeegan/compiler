@@ -1,7 +1,7 @@
 package miniJava.CodeGeneration.x64.ISA;
 
 import miniJava.CodeGeneration.x64.Instruction;
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 import miniJava.CodeGeneration.x64.Reg64;
 import miniJava.CodeGeneration.x64.x64;
 
@@ -17,7 +17,7 @@ public class Push extends Instruction {
 		opcodeBytes.write(0x50 + x64.getIdx(reg));
 	}
 	
-	public Push(ModRMSIB modrmsib) {
+	public Push(R modrmsib) {
 		// no need to set rexW, push is always r64 (cannot access ecx/r9d)
 		opcodeBytes.write(0xFF);
 		

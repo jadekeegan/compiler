@@ -1,6 +1,6 @@
 package miniJava.CodeGeneration.x64.ISA;
 
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 
 public class Sub extends SimpleMathInstruction {
 	@Override
@@ -8,11 +8,11 @@ public class Sub extends SimpleMathInstruction {
 		return SimpleMathOp.SUB;
 	}
 	
-	public Sub(ModRMSIB modrmsib) {
+	public Sub(R modrmsib) {
 		super(modrmsib);
 	}
 
-	public Sub(ModRMSIB modrmsib, int imm) {
+	public Sub(R modrmsib, int imm) {
 		super(modrmsib,imm);
 	}
 }

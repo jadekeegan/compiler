@@ -1,7 +1,7 @@
 package miniJava.CodeGeneration.x64.ISA;
 
 import miniJava.CodeGeneration.x64.Instruction;
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 import miniJava.CodeGeneration.x64.x64;
 
 public class Call extends Instruction {
@@ -15,7 +15,7 @@ public class Call extends Instruction {
 		x64.writeInt(immBytes, destAddr - curAddr - 5);
 	}
 	
-	public Call(ModRMSIB modrmsib) {
+	public Call(R modrmsib) {
 		opcodeBytes.write(0xFF);
 		
 		modrmsib.SetRegR(x64.mod543ToReg(2));

@@ -1,6 +1,6 @@
 package miniJava.CodeGeneration.x64.ISA;
 
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 
 public class And extends SimpleMathInstruction {
 	@Override
@@ -8,15 +8,15 @@ public class And extends SimpleMathInstruction {
 		return SimpleMathOp.AND;
 	}
 
-	public And(ModRMSIB modrmsib) {
+	public And(R modrmsib) {
 		super(modrmsib);
 	}
 
-	public And(ModRMSIB modrmsib, int imm) {
+	public And(R modrmsib, int imm) {
 		super(modrmsib,imm);
 	}
 	
-	public And(ModRMSIB modrmsib, int imm, boolean signExtend) {
+	public And(R modrmsib, int imm, boolean signExtend) {
 		super(modrmsib,imm,signExtend);
 	}
 }

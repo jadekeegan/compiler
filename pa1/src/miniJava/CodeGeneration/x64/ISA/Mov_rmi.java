@@ -1,12 +1,12 @@
 package miniJava.CodeGeneration.x64.ISA;
 
 import miniJava.CodeGeneration.x64.Instruction;
-import miniJava.CodeGeneration.x64.ModRMSIB;
+import miniJava.CodeGeneration.x64.R;
 import miniJava.CodeGeneration.x64.x64;
 
 public class Mov_rmi extends Instruction {
 	// rm,imm32 variants
-	public Mov_rmi(ModRMSIB modrmsib, int imm) {
+	public Mov_rmi(R modrmsib, int imm) {
 		modrmsib.SetRegR(x64.mod543ToReg(0));
 		byte[] modrmsibBytes = modrmsib.getBytes();
 		importREX(modrmsib);

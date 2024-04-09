@@ -79,14 +79,14 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	}
 	
 	private int makeMalloc() {
-		int idxStart = _asm.add( new Mov_rmi(new ModRMSIB(Reg64.RAX,true),0x09) ); // mmap
+		int idxStart = _asm.add( new Mov_rmi(new R(Reg64.RAX,true),0x09) ); // mmap
 		
-		_asm.add( new Xor(		new ModRMSIB(Reg64.RDI,Reg64.RDI)) 	); // addr=0
-		_asm.add( new Mov_rmi(	new ModRMSIB(Reg64.RSI,true),0x1000) ); // 4kb alloc
-		_asm.add( new Mov_rmi(	new ModRMSIB(Reg64.RDX,true),0x03) 	); // prot read|write
-		_asm.add( new Mov_rmi(	new ModRMSIB(Reg64.R10,true),0x22) 	); // flags= private, anonymous
-		_asm.add( new Mov_rmi(	new ModRMSIB(Reg64.R8, true),-1) 	); // fd= -1
-		_asm.add( new Xor(		new ModRMSIB(Reg64.R9,Reg64.R9)) 	); // offset=0
+		_asm.add( new Xor(		new R(Reg64.RDI,Reg64.RDI)) 	); // addr=0
+		_asm.add( new Mov_rmi(	new R(Reg64.RSI,true),0x1000) ); // 4kb alloc
+		_asm.add( new Mov_rmi(	new R(Reg64.RDX,true),0x03) 	); // prot read|write
+		_asm.add( new Mov_rmi(	new R(Reg64.R10,true),0x22) 	); // flags= private, anonymous
+		_asm.add( new Mov_rmi(	new R(Reg64.R8, true),-1) 	); // fd= -1
+		_asm.add( new Xor(		new R(Reg64.R9,Reg64.R9)) 	); // offset=0
 		_asm.add( new Syscall() );
 		
 		// pointer to newly allocated memory is in RAX
