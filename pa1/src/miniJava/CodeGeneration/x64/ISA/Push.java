@@ -1,13 +1,10 @@
 package miniJava.CodeGeneration.x64.ISA;
 
-import miniJava.CodeGeneration.x64.Instruction;
-import miniJava.CodeGeneration.x64.R;
-import miniJava.CodeGeneration.x64.Reg64;
-import miniJava.CodeGeneration.x64.x64;
+import miniJava.CodeGeneration.x64.*;
 
 public class Push extends Instruction {
-	public Push(int imm) {
-		// TODO: how can we do a push imm32?
+	public Push(Reg32 reg) {
+		opcodeBytes.write(0x68);
 	}
 	
 	public Push(Reg64 reg) {
