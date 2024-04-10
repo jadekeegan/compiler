@@ -3,8 +3,10 @@ package miniJava.CodeGeneration.x64.ISA;
 import miniJava.CodeGeneration.x64.*;
 
 public class Push extends Instruction {
-	public Push(Reg32 reg) {
+	public Push(int imm) {
+		// push imm32
 		opcodeBytes.write(0x68);
+		opcodeBytes.write(imm);
 	}
 	
 	public Push(Reg64 reg) {
