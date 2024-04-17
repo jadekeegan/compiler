@@ -9,6 +9,9 @@ public class Mov_ri64 extends Instruction {
 	public Mov_ri64(Reg64 reg, long imm64) {
 		rexW = true; // operand is 64bit
 
+		if (reg.getIdx() > 7)
+			rexB = true; // allow access to R8-R15
+
 		// NOTE: x64.getIdx(r) will return a 0-7 index, whereas r.getIdx() returns an index from 0-15
 		// Opcode: B8 + r
 		opcodeBytes.write(0xB8 + x64.getIdx(reg));

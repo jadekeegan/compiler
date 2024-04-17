@@ -160,12 +160,20 @@ public class R {
 	private void Make(Reg64 rdisp, int disp, Reg r) {
 		// Construct the byte and write to _b
 		// Operands: [rdisp+disp],r
-		int mod = disp > 0xF ? 2
+		int mod = (disp > 127 || disp < -128) ? 2
 				: disp == 0 ? 0
 				: 1;
 
 		int regByte = ( mod << 6) | ( getIdx(r) << 3) | getIdx(rdisp);
 		_b.write( regByte );
+
+		// if rdisp is RSP
+		if (rdisp.getIdx() == 4) {
+			int sib = (4 << 3) | 4;
+			_b.write(sib);
+		}
+
+		x64.writeInt(_b, disp);
 	}
 	
 	// [ridx*mult+disp],r
@@ -177,20 +185,29 @@ public class R {
 		
 		// TODO: construct the modrm byte and SIB byte
 		// Operands: [ridx*mult + disp], r
-		int ss;
+		int mod, ss;
+		mod = (disp > 127 || disp < -128) ? 2
+				: disp == 0 ? 0
+				: 1;
+
 		ss = ( mult == 1) ? 0
 				: (mult == 2) ? 1
 				: (mult == 4) ? 2
 				: 3;
 
 		// EX: [rcx*mult + disp32], rdx = 93 = 1001 0100
-		int modRMByte = ( getIdx(r) << 3) | 4;
+		int modRMByte = ( mod << 6 ) | ( getIdx(r) << 3) | 4;
 
 		int sibByte = (ss << 6) | ( getIdx(ridx) << 3) | 5;
 
 		_b.write(modRMByte);
 		_b.write(sibByte);
-		x64.writeInt(_b, disp);
+
+		if (mod == 2) {
+			x64.writeInt(_b, disp);
+		} else if (mod == 1) {
+			_b.write(disp);
+		}
 	}
 	
 	// [rdisp+ridx*mult+disp],r
@@ -203,7 +220,7 @@ public class R {
 		// construct the modrm byte and SIB byte
 		// Operands: [rdisp + ridx*mult + disp], r
 		int mod, ss;
-		mod = disp > 0xF ? 2
+		mod = (disp > 127 || disp < -128) ? 2
 				: disp == 0 ? 0
 				: 1;
 
@@ -218,6 +235,12 @@ public class R {
 
 		_b.write(modRMByte);
 		_b.write(sibByte);
+
+		if (mod == 2) {
+			x64.writeInt(_b, disp);
+		} else if (mod == 1) {
+			_b.write(disp);
+		}
 	}
 	
 	// [disp],r

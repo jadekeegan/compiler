@@ -5,6 +5,7 @@ import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.CodeGeneration.x64.*;
 import miniJava.CodeGeneration.x64.ISA.*;
+import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class CodeGenerator implements Visitor<Object, Object> {
 	private ErrorReporter _errors;
@@ -66,13 +67,172 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		if( !_errors.hasErrors() )
 			makeElf("a.out");
 	}
-
+	public void reportCodeGenerationError(SourcePosition posn, String e) {
+		this._errors.reportError(posn, "(CodeGenerationError) " + e + ".");
+	}
 	@Override
 	public Object visitPackage(Package prog, Object arg) {
 		// TODO: visit relevant parts of our AST
+		ClassDeclList cl = prog.classDeclList;
+
+		// Check for Main Method
+		boolean hasOneMain = false;
+		for (ClassDecl c: cl) {
+			// Add Methods for Class to Level 1 Scope
+			for (MethodDecl m: c.methodDeclList) {
+				boolean isMain = !m.isPrivate		// public
+					&& m.isStatic					// static
+					&& (m.type.typeKind == TypeKind.VOID)	// void
+					&& m.name.equals("main")				// main
+					&& (m.parameterDeclList.size() == 1		// paramList size 1
+					&& m.parameterDeclList.get(0).type instanceof ArrayType // []
+					&& ((ArrayType) m.parameterDeclList.get(0).type).eltType instanceof ClassType // Class
+					&& ((ClassType) ((ArrayType) m.parameterDeclList.get(0).type).eltType).className.spelling.equals("String")); // String[]
+
+				if (isMain && hasOneMain) {
+					this.reportCodeGenerationError(m.posn,
+							"Main function already exists in program");
+				} else if (isMain) {
+					hasOneMain = true;
+				}
+			}
+		}
 		return null;
 	}
-	
+
+	public Object visitClassDecl(ClassDecl cd, Object arg) {
+		return null;
+	}
+
+	public Object visitFieldDecl(FieldDecl fd, Object arg) {
+		return null;
+	}
+
+	public Object visitMethodDecl(MethodDecl md, Object arg) {
+		if (md.type.typeKind != TypeKind.VOID
+				&& !(md.statementList.get(md.statementList.size() - 1) instanceof ReturnStmt)) {
+			this.reportCodeGenerationError(md.posn,
+					"Last statement of a non-void method must be a return statement");
+		}
+		return null;
+	}
+
+	public Object visitParameterDecl(ParameterDecl pd, Object arg) {
+		return null;
+	}
+
+	public Object visitVarDecl(VarDecl decl, Object arg) {
+		return null;
+	}
+
+	public Object visitBaseType(BaseType type, Object arg) {
+		return null;
+	}
+
+	public Object visitClassType(ClassType type, Object arg) {
+		return null;
+	}
+
+	public Object visitArrayType(ArrayType type, Object arg) {
+		return null;
+	}
+
+	public Object visitBlockStmt(BlockStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitVardeclStmt(VarDeclStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitAssignStmt(AssignStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitIxAssignStmt(IxAssignStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitCallStmt(CallStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitReturnStmt(ReturnStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitIfStmt(IfStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitWhileStmt(WhileStmt stmt, Object arg) {
+		return null;
+	}
+
+	public Object visitUnaryExpr(UnaryExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitBinaryExpr(BinaryExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitRefExpr(RefExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitIxExpr(IxExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitCallExpr(CallExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitLiteralExpr(LiteralExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitNewObjectExpr(NewObjectExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitNewArrayExpr(NewArrayExpr expr, Object arg) {
+		return null;
+	}
+
+	public Object visitThisRef(ThisRef ref, Object arg) {
+		return null;
+	}
+
+	public Object visitIdRef(IdRef ref, Object arg) {
+		return null;
+	}
+
+	public Object visitQRef(QualRef ref, Object arg) {
+		return null;
+	}
+
+	public Object visitIdentifier(Identifier id, Object arg) {
+		return null;
+	}
+
+	public Object visitOperator(Operator op, Object arg) {
+		return null;
+	}
+
+	public Object visitIntLiteral(IntLiteral num, Object arg) {
+		return null;
+	}
+
+	public Object visitBooleanLiteral(BooleanLiteral bool, Object arg) {
+		return null;
+	}
+
+	public Object visitNullLiteral(NullLiteral nullLiteral, Object arg) {
+		return null;
+	}
+
 	public void makeElf(String fname) {
 		ELFMaker elf = new ELFMaker(_errors, _asm.getSize(), 8); // bss ignored until PA5, set to 8
 		elf.outputELF(fname, _asm.getBytes(), ??); // TODO: set the location of the main method

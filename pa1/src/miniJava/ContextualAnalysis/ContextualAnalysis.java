@@ -290,7 +290,6 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
     public Object visitCallStmt(CallStmt stmt, Object arg){
         stmt.methodRef.visit(this, arg);
-
         // Ensure reference is a MethodDecl
         if (stmt.methodRef.declaration instanceof MethodDecl) {
             MethodDecl md = (MethodDecl) stmt.methodRef.declaration;

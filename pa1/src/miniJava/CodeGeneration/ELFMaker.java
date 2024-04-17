@@ -38,7 +38,7 @@ public class ELFMaker {
 		// next is the .text
 		text.sectionName = ".text";
 		text.sh_size = textSize;
-		text.sh_flags = ??; // TODO: what flags does the text section get?
+		text.sh_flags = SHF_ALLOC; // TODO: what flags does the text section get?
 		text.sh_type = ??; // TODO: what type is the text section?
 		text.data = new byte[1]; // placeholder, do not change
 		sections.add( text );
@@ -339,7 +339,7 @@ public class ELFMaker {
 		e.data = null;
 		
 		e.sh_name = 0;
-		e.sh_type = ??; // TODO: what type is the null section?
+		e.sh_type = PT_NULL; // TODO: what type is the null section?
 		e.sh_flags = 0;
 		e.sh_addr = 0;
 		e.sh_offset = 0;
