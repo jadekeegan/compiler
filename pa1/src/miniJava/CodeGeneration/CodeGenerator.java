@@ -97,18 +97,46 @@ public class CodeGenerator implements Visitor<Object, Object> {
 				}
 			}
 		}
+
+		if (!hasOneMain) {
+			this.reportCodeGenerationError(prog.posn,
+					"No main function exists in program.");
+		}
 		return null;
 	}
 
-	public Object visitClassDecl(ClassDecl cd, Object arg) {
+	///////////////////////////////////////////////////////////////////////////////
+	//
+	// DECLARATIONS
+	//
+	///////////////////////////////////////////////////////////////////////////////
+
+	public Object visitClassDecl(ClassDecl clas, Object arg){
+		for (FieldDecl f: clas.fieldDeclList)
+			f.visit(this, arg);
+		for (MethodDecl m: clas.methodDeclList)
+			m.visit(this, arg);
 		return null;
 	}
 
-	public Object visitFieldDecl(FieldDecl fd, Object arg) {
+	public Object visitFieldDecl(FieldDecl f, Object arg){
+		f.type.visit(this, arg);
 		return null;
 	}
 
 	public Object visitMethodDecl(MethodDecl md, Object arg) {
+		md.type.visit(this, arg);
+
+		ParameterDeclList pdl = md.parameterDeclList;
+		for (ParameterDecl pd: pdl) {
+			pd.visit(this, arg);
+		}
+
+		StatementList sl = md.statementList;
+		for (Statement s: sl) {
+			s.visit(this, arg);
+		}
+
 		if (md.type.typeKind != TypeKind.VOID
 				&& !(md.statementList.get(md.statementList.size() - 1) instanceof ReturnStmt)) {
 			this.reportCodeGenerationError(md.posn,
@@ -117,119 +145,213 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		return null;
 	}
 
-	public Object visitParameterDecl(ParameterDecl pd, Object arg) {
+	public Object visitParameterDecl(ParameterDecl pd, Object arg){
+		pd.type.visit(this, arg);
 		return null;
 	}
 
-	public Object visitVarDecl(VarDecl decl, Object arg) {
+	public Object visitVarDecl(VarDecl vd, Object arg){
+		vd.type.visit(this, arg);
+
+		// Make space for variable on the stack (8 bytes).
+		_asm.add(new Push(0));
 		return null;
 	}
 
-	public Object visitBaseType(BaseType type, Object arg) {
+
+	///////////////////////////////////////////////////////////////////////////////
+	//
+	// TYPES
+	//
+	///////////////////////////////////////////////////////////////////////////////
+
+	public Object visitBaseType(BaseType type, Object arg){
 		return null;
 	}
 
-	public Object visitClassType(ClassType type, Object arg) {
+	public Object visitClassType(ClassType ct, Object arg){
+		ct.className.visit(this, arg);
 		return null;
 	}
 
-	public Object visitArrayType(ArrayType type, Object arg) {
+	public Object visitArrayType(ArrayType type, Object arg){
+		type.eltType.visit(this, arg);
 		return null;
 	}
 
-	public Object visitBlockStmt(BlockStmt stmt, Object arg) {
+
+	///////////////////////////////////////////////////////////////////////////////
+	//
+	// STATEMENTS
+	//
+	///////////////////////////////////////////////////////////////////////////////
+
+	public Object visitBlockStmt(BlockStmt stmt, Object arg){
+		StatementList sl = stmt.sl;
+		for (Statement s: sl) {
+			s.visit(this, arg);
+		}
 		return null;
 	}
 
-	public Object visitVardeclStmt(VarDeclStmt stmt, Object arg) {
+	public Object visitVardeclStmt(VarDeclStmt stmt, Object arg){
+		stmt.varDecl.visit(this, arg);
+		stmt.initExp.visit(this, arg);
+
+		// TODO: Check if initExp evaluates to 'null'.
+
+		if (stmt.varDecl.type instanceof ArrayType | stmt.varDecl.type instanceof ClassType) {
+
+		} else {
+
+		}
+		
 		return null;
 	}
 
-	public Object visitAssignStmt(AssignStmt stmt, Object arg) {
+	public Object visitAssignStmt(AssignStmt stmt, Object arg){
+		stmt.ref.visit(this, arg);
+		stmt.val.visit(this, arg);
 		return null;
 	}
 
-	public Object visitIxAssignStmt(IxAssignStmt stmt, Object arg) {
+	public Object visitIxAssignStmt(IxAssignStmt stmt, Object arg){
+		stmt.ref.visit(this, arg);
+		stmt.ix.visit(this, arg);
+		stmt.exp.visit(this, arg);
 		return null;
 	}
 
-	public Object visitCallStmt(CallStmt stmt, Object arg) {
+	public Object visitCallStmt(CallStmt stmt, Object arg){
+		stmt.methodRef.visit(this, arg);
+		ExprList al = stmt.argList;
+		for (Expression e: al) {
+			e.visit(this, arg);
+		}
 		return null;
 	}
 
-	public Object visitReturnStmt(ReturnStmt stmt, Object arg) {
+	public Object visitReturnStmt(ReturnStmt stmt, Object arg){
+		if (stmt.returnExpr != null)
+			stmt.returnExpr.visit(this, arg);
 		return null;
 	}
 
-	public Object visitIfStmt(IfStmt stmt, Object arg) {
+	public Object visitIfStmt(IfStmt stmt, Object arg){
+		stmt.cond.visit(this, arg);
+		stmt.thenStmt.visit(this, arg);
+		if (stmt.elseStmt != null)
+			stmt.elseStmt.visit(this, arg);
 		return null;
 	}
 
-	public Object visitWhileStmt(WhileStmt stmt, Object arg) {
+	public Object visitWhileStmt(WhileStmt stmt, Object arg){
+		stmt.cond.visit(this, arg);
+		stmt.body.visit(this, arg);
 		return null;
 	}
 
-	public Object visitUnaryExpr(UnaryExpr expr, Object arg) {
+
+	///////////////////////////////////////////////////////////////////////////////
+	//
+	// EXPRESSIONS
+	//
+	///////////////////////////////////////////////////////////////////////////////
+
+	public Object visitUnaryExpr(UnaryExpr expr, Object arg){
+		expr.operator.visit(this, arg);
+		expr.expr.visit(this, arg);
 		return null;
 	}
 
-	public Object visitBinaryExpr(BinaryExpr expr, Object arg) {
+	public Object visitBinaryExpr(BinaryExpr expr, Object arg){
+		expr.operator.visit(this, arg);
+		expr.left.visit(this, arg);
+		expr.right.visit(this, arg);
 		return null;
 	}
 
-	public Object visitRefExpr(RefExpr expr, Object arg) {
+	public Object visitRefExpr(RefExpr expr, Object arg){
+		expr.ref.visit(this, arg);
 		return null;
 	}
 
-	public Object visitIxExpr(IxExpr expr, Object arg) {
+	public Object visitIxExpr(IxExpr ie, Object arg){
+		ie.ref.visit(this, arg);
+		ie.ixExpr.visit(this, arg);
 		return null;
 	}
 
-	public Object visitCallExpr(CallExpr expr, Object arg) {
+	public Object visitCallExpr(CallExpr expr, Object arg){
+		expr.functionRef.visit(this, arg);
+		ExprList al = expr.argList;
+		for (Expression e: al) {
+			e.visit(this, arg);
+		}
 		return null;
 	}
 
-	public Object visitLiteralExpr(LiteralExpr expr, Object arg) {
+	public Object visitLiteralExpr(LiteralExpr expr, Object arg){
+		expr.lit.visit(this, arg);
 		return null;
 	}
 
-	public Object visitNewObjectExpr(NewObjectExpr expr, Object arg) {
+	public Object visitNewArrayExpr(NewArrayExpr expr, Object arg){
+		expr.eltType.visit(this, arg);
+		expr.sizeExpr.visit(this, arg);
 		return null;
 	}
 
-	public Object visitNewArrayExpr(NewArrayExpr expr, Object arg) {
+	public Object visitNewObjectExpr(NewObjectExpr expr, Object arg){
+		expr.classtype.visit(this, arg);
 		return null;
 	}
+
+
+	///////////////////////////////////////////////////////////////////////////////
+	//
+	// REFERENCES
+	//
+	///////////////////////////////////////////////////////////////////////////////
 
 	public Object visitThisRef(ThisRef ref, Object arg) {
 		return null;
 	}
 
 	public Object visitIdRef(IdRef ref, Object arg) {
+		ref.id.visit(this, arg);
 		return null;
 	}
 
-	public Object visitQRef(QualRef ref, Object arg) {
+	public Object visitQRef(QualRef qr, Object arg) {
+		qr.id.visit(this, arg);
+		qr.ref.visit(this, arg);
 		return null;
 	}
 
-	public Object visitIdentifier(Identifier id, Object arg) {
+	///////////////////////////////////////////////////////////////////////////////
+	//
+	// TERMINALS
+	//
+	///////////////////////////////////////////////////////////////////////////////
+
+	public Object visitIdentifier(Identifier id, Object arg){
 		return null;
 	}
 
-	public Object visitOperator(Operator op, Object arg) {
+	public Object visitOperator(Operator op, Object arg){
 		return null;
 	}
 
-	public Object visitIntLiteral(IntLiteral num, Object arg) {
+	public Object visitIntLiteral(IntLiteral num, Object arg){
 		return null;
 	}
 
-	public Object visitBooleanLiteral(BooleanLiteral bool, Object arg) {
+	public Object visitBooleanLiteral(BooleanLiteral bool, Object arg){
 		return null;
 	}
 
-	public Object visitNullLiteral(NullLiteral nullLiteral, Object arg) {
+	public Object visitNullLiteral(NullLiteral nl, Object arg) {
 		return null;
 	}
 
