@@ -6,7 +6,7 @@ public class Push extends Instruction {
 	public Push(int imm) {
 		// push imm32
 		opcodeBytes.write(0x68);
-		opcodeBytes.write(imm);
+		x64.writeInt(immBytes, imm);
 	}
 	
 	public Push(Reg64 reg) {

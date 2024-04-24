@@ -8,6 +8,10 @@ package miniJava.AbstractSyntaxTrees;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class MethodDecl extends MemberDecl {
+    public int currentOffset = -8;
+    public int currentArgPosition = 8;
+    public boolean isMain = false;
+    public int methodAddress = -1;
 	
 	public MethodDecl(MemberDecl md, ParameterDeclList pl, StatementList sl, SourcePosition posn){
     super(md,posn);
@@ -18,7 +22,8 @@ public class MethodDecl extends MemberDecl {
 	public <A, R> R visit(Visitor<A, R> v, A o) {
         return v.visitMethodDecl(this, o);
     }
-	
+
 	public ParameterDeclList parameterDeclList;
 	public StatementList statementList;
+
 }

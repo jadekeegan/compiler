@@ -623,16 +623,16 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             Declaration decl = null;
             if (currRef instanceof ThisRef) {
                 // Visit to ensure ThisRef has an associated declaration!
-                currRef.visit(this, arg);
+                currRef.visit(this, context);
                 decl = ((ThisRef) currRef).declaration;
             } else if (currRef instanceof IdRef) {
                 // Visit to ensure id has an associated declaration!
-                ((IdRef) currRef).id.visit(this, arg);
+                ((IdRef) currRef).id.visit(this, context);
                 decl = ((IdRef) currRef).id.declaration;
                 currRef.declaration = decl;
             } else if (currRef instanceof QualRef) {
                 // Visit to ensure id has an associated declaration!
-                ((QualRef) currRef).id.visit(this, arg);
+                ((QualRef) currRef).id.visit(this, context);
                 decl = ((QualRef) currRef).id.declaration;
                 currRef.declaration = decl;
             }
@@ -642,6 +642,8 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
             QualRef currQRef = (QualRef) currRef;
             if (decl instanceof LocalDecl) {
+                context = null;
+
                 // Handling for case A a = new A(); \ a.b = ... (using a)
                 LocalDecl ld = (LocalDecl) decl;
 

@@ -8,6 +8,7 @@ package miniJava.AbstractSyntaxTrees;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class FieldDecl extends MemberDecl {
+	public int offset; // offset from address in heap or start of stack
 	
 	public FieldDecl(boolean isPrivate, boolean isStatic, TypeDenoter t, String name, SourcePosition posn){
     super(isPrivate, isStatic, t, name, posn);

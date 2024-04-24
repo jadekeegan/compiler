@@ -132,7 +132,7 @@ public class ScopedIdentification {
                     "(IdentificationError) Cannot reference private identifier '" + result.name + "'.");
         } else if (result instanceof VarDecl && !((VarDecl) result).isInitialized) {
             this.reportIdentificationError(id.posn,
-                    "(IdentificationError) Cannot reference uninitialized variable " + result.name);
+                    "Cannot reference uninitialized variable " + result.name);
         } else if (result instanceof MemberDecl && context instanceof MethodDecl && ((MethodDecl) context).isStatic && !((MemberDecl) result).isStatic) {
             MethodDecl md = (MethodDecl) context;
             if (result.type.typeKind == TypeKind.CLASS && md.associatedClass.name.equals(((MemberDecl) result).associatedClass.name)) {
@@ -140,7 +140,7 @@ public class ScopedIdentification {
             }
 
             this.reportIdentificationError(id.posn,
-                    "(IdentificationError) Cannot access non-static member " + result.name + " in static method " + context.name);
+                    "Cannot access non-static member " + result.name + " in static method " + context.name);
         }
 
         return result;

@@ -2,6 +2,7 @@ package miniJava;
 
 import java.io.FileInputStream;
 
+import miniJava.CodeGeneration.CodeGenerator;
 import miniJava.ContextualAnalysis.ContextualAnalysis;
 import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.SyntacticAnalyzer.Scanner;
@@ -44,6 +45,15 @@ public class Compiler {
 
 		ContextualAnalysis identification = new ContextualAnalysis(_errors);
 		identification.parse(ASTPackage);
+
+		if (_errors.hasErrors()) {
+			System.out.println("Error");
+			_errors.outputErrors();
+			System.exit(1);
+		}
+
+		CodeGenerator codeGenerator = new CodeGenerator(_errors);
+		codeGenerator.parse(ASTPackage);
 
 		if (_errors.hasErrors()) {
 			System.out.println("Error");

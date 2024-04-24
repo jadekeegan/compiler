@@ -173,7 +173,11 @@ public class R {
 			_b.write(sib);
 		}
 
-		x64.writeInt(_b, disp);
+		if (mod == 2) {
+			x64.writeInt(_b, disp);
+		} else if (mod == 1) {
+			_b.write(disp);
+		}
 	}
 	
 	// [ridx*mult+disp],r

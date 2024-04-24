@@ -1,5 +1,6 @@
 package miniJava.CodeGeneration;
 
+import com.sun.jdi.ArrayReference;
 import miniJava.ErrorReporter;
 import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
@@ -7,10 +8,17 @@ import miniJava.CodeGeneration.x64.*;
 import miniJava.CodeGeneration.x64.ISA.*;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.HashSet;
+
 public class CodeGenerator implements Visitor<Object, Object> {
 	private ErrorReporter _errors;
 	private InstructionList _asm; // our list of instructions that are used to make the code section
-	
+	private int mainAddress = 0;
+	private int stackSize = 0;
+	private HashMap<Integer, MethodDecl> methodPatching = new HashMap<>();
+
 	public CodeGenerator(ErrorReporter errors) {
 		this._errors = errors;
 	}
@@ -60,9 +68,11 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		// patch method 2: let the jmp calculate the offset
 		//  Note the false means that it is a 32-bit immediate for jumping (an int)
 		//     _asm.patch( someJump.listIdx, new Jmp(asm.size(), someJump.startAddress, false) );
-		
+
+		_asm.markOutputStart();
 		prog.visit(this,null);
-		
+		_asm.outputFromMark();
+
 		// Output the file "a.out" if no errors
 		if( !_errors.hasErrors() )
 			makeElf("a.out");
@@ -77,8 +87,22 @@ public class CodeGenerator implements Visitor<Object, Object> {
 
 		// Check for Main Method
 		boolean hasOneMain = false;
+
 		for (ClassDecl c: cl) {
-			// Add Methods for Class to Level 1 Scope
+			// Calculate size of Classes
+			for (FieldDecl f: c.fieldDeclList) {
+				// Add space for static fields to the stack.
+				if (f.isStatic) {
+					_asm.add(	new Push(0)	);
+					f.offset = stackSize;	// push space to stack
+					stackSize += 1;		// increment the size of the stack
+				} else {
+					f.offset = c.numBytes;	// set offset of field from start of class
+					c.numBytes += 8;	// assume size of all types is 8 bytes
+				}
+			}
+
+			// Find Main Method
 			for (MethodDecl m: c.methodDeclList) {
 				boolean isMain = !m.isPrivate		// public
 					&& m.isStatic					// static
@@ -94,8 +118,13 @@ public class CodeGenerator implements Visitor<Object, Object> {
 							"Main function already exists in program");
 				} else if (isMain) {
 					hasOneMain = true;
+					m.isMain = true;
 				}
 			}
+		}
+
+		for (ClassDecl c: cl) {
+			c.visit(this, null);
 		}
 
 		if (!hasOneMain) {
@@ -127,14 +156,30 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	public Object visitMethodDecl(MethodDecl md, Object arg) {
 		md.type.visit(this, arg);
 
+		md.methodAddress = _asm.getSize();
+		if (md.isMain) {
+			mainAddress = md.methodAddress;
+		} else if (methodPatching.containsValue(md)) {
+			for (Integer idx : methodPatching.keySet()) {
+				if (methodPatching.get(idx).equals(md)) {
+					Instruction oldInstr = _asm.get(idx);
+					_asm.patch(idx, new Call(oldInstr.startAddress, md.methodAddress));
+				}
+			}
+		}
+
+		_asm.add(new Push(Reg64.RBP));
+		_asm.add(new Mov_rmr(new R(Reg64.RBP, Reg64.RSP)));
+
 		ParameterDeclList pdl = md.parameterDeclList;
 		for (ParameterDecl pd: pdl) {
-			pd.visit(this, arg);
+			pd.visit(this, md);
 		}
 
 		StatementList sl = md.statementList;
+
 		for (Statement s: sl) {
-			s.visit(this, arg);
+			s.visit(this, md);
 		}
 
 		if (md.type.typeKind != TypeKind.VOID
@@ -142,19 +187,43 @@ public class CodeGenerator implements Visitor<Object, Object> {
 			this.reportCodeGenerationError(md.posn,
 					"Last statement of a non-void method must be a return statement");
 		}
+
+		_asm.add(new Mov_rmr(new R(Reg64.RSP, Reg64.RBP)));
+		_asm.add(new Pop(Reg64.RBP));
+
+		// Pop Arguments from the Stack
+//		int RSPoffset = md.parameterDeclList.size() * 8;
+//		_asm.add(new Add(new R(Reg64.RSP, true), RSPoffset));
+
+		if (md.isMain) {
+			_asm.add( new Mov_rmi(new R(Reg64.RAX,true),0x3C) ); // exit
+			_asm.add(new Xor(new R(Reg64.RDI,Reg64.RDI)) ); // addr=0
+			_asm.add(new Syscall());
+		} else {
+			_asm.add(new Ret());
+		}
 		return null;
 	}
 
+	// int method(int x, int y, int z)
 	public Object visitParameterDecl(ParameterDecl pd, Object arg){
+		// Update the stack offset for each parameterDecl.
+		// num_params * -1 + num_params_processed
+		MethodDecl md = (MethodDecl) arg;
+		pd.stackOffset = (md.parameterDeclList.size() * 8) + md.currentArgPosition;
+		md.currentArgPosition += 8;
+
 		pd.type.visit(this, arg);
 		return null;
 	}
 
 	public Object visitVarDecl(VarDecl vd, Object arg){
-		vd.type.visit(this, arg);
+		// Update the stack offset for the variable.
+		MethodDecl md = (MethodDecl) arg;
+		vd.stackOffset = md.currentOffset;
+		md.currentOffset -= 8;
 
-		// Make space for variable on the stack (8 bytes).
-		_asm.add(new Push(0));
+		vd.type.visit(this, arg);
 		return null;
 	}
 
@@ -197,48 +266,101 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	public Object visitVardeclStmt(VarDeclStmt stmt, Object arg){
 		stmt.varDecl.visit(this, arg);
 		stmt.initExp.visit(this, arg);
-
-		// TODO: Check if initExp evaluates to 'null'.
-
-		if (stmt.varDecl.type instanceof ArrayType | stmt.varDecl.type instanceof ClassType) {
-
-		} else {
-
-		}
-		
+		_asm.add(new Push(Reg64.RAX));
 		return null;
 	}
 
 	public Object visitAssignStmt(AssignStmt stmt, Object arg){
-		stmt.ref.visit(this, arg);
-		stmt.val.visit(this, arg);
+		if (stmt.ref instanceof IdRef) {
+			stmt.val.visit(this, arg);	// Push value to be assigned to RAX
+
+			if (stmt.ref.declaration instanceof LocalDecl) {
+				_asm.add(new Mov_rmr(new R(Reg64.RBP, ((LocalDecl) stmt.ref.declaration).stackOffset, Reg64.RAX)));
+			}
+//			} else if (stmt.ref.declaration instanceof FieldDecl) {
+//				FieldDecl fd = (FieldDecl) stmt.ref.declaration;
+//				if (fd.isStatic) {	// Access from Stack
+//					_asm.add(	new Mov_rmr(new R(Reg64.RBP, fd.offset, Reg64.RAX)));
+//				} else {	// Access Heap
+//					if (arg instanceof VarDecl) {
+//						// Move heap addr to RDX
+//						_asm.add( new Mov_rrm(new R(Reg64.RBP, ((VarDecl) arg).stackOffset, Reg64.RDX)));
+//						// Add field offset to heap addr
+//						_asm.add(	new Add(new R(Reg64.RDX, fd.offset)));
+//						// Update Field
+//						_asm.add(	new Mov_rmr(new R(Reg64.RDX, Reg64.RAX)));
+//					}
+//				}
+//			}
+		} else if (stmt.ref instanceof QualRef) {
+			stmt.ref.visit(this, arg);	// Push address of var associated with ref to RAX
+			_asm.add(new Mov_rmr(new R(Reg64.RCX, Reg64.RAX)));	// Move destination address to RDX
+			stmt.val.visit(this, arg);	// Push value to be assigned to RAX
+
+			if (stmt.val instanceof NewObjectExpr || stmt.val instanceof NewArrayExpr) {
+				_asm.add(new Push(Reg64.RAX));
+			}
+			_asm.add(new Mov_rrm(new R(Reg64.RCX, 0, Reg64.RAX)));	// stmt.val to address at RAX
+		}
+
 		return null;
 	}
 
 	public Object visitIxAssignStmt(IxAssignStmt stmt, Object arg){
-		stmt.ref.visit(this, arg);
-		stmt.ix.visit(this, arg);
-		stmt.exp.visit(this, arg);
+		stmt.ix.visit(this, arg);	// pushes value to RAX
+		_asm.add(new Imul(Reg64.RDI, new R(Reg64.RAX, true), 8));	// move index * 8 into RDI
+		stmt.ref.visit(this, arg); // pushes addr of ref to RAX
+		_asm.add(new Add(new R(Reg64.RAX, Reg64.RDI)));	// rax = addr + index * 8
+		_asm.add(new Mov_rmr(new R(Reg64.RDI, Reg64.RAX)));	// rdi = rax
+		stmt.exp.visit(this, arg);	// pushes result to RAX
+		_asm.add(new Mov_rmr(new R(Reg64.RDI, 0, Reg64.RAX)));	// [rdi] = rax
 		return null;
 	}
 
 	public Object visitCallStmt(CallStmt stmt, Object arg){
-		stmt.methodRef.visit(this, arg);
+//		stmt.methodRef.visit(this, arg);
 		ExprList al = stmt.argList;
-		for (Expression e: al) {
-			e.visit(this, arg);
+		for (int i=al.size()-1; i >= 0; i--) {
+			al.get(i).visit(this, arg);	// Push arguments to RAX
+			_asm.add(new Push(Reg64.RAX));
+		}
+
+		// Call method
+		if (stmt.methodRef instanceof QualRef) {
+			if (((QualRef) stmt.methodRef).ref.declaration.name.equals("out") &&
+					((QualRef) stmt.methodRef).id.spelling.equals("println")) {
+				_asm.add(new Lea(new R(Reg64.RSP, 0, Reg64.RSI)));	// move addr of RSP into RSI
+				makePrintln();
+			} else {
+				if (((MethodDecl) ((QualRef) stmt.methodRef).id.declaration).methodAddress == -1) {
+					int callIdx = _asm.add(new Call(0));	// dummy call for instruction reference
+					methodPatching.put(callIdx, ((MethodDecl) ((QualRef) stmt.methodRef).id.declaration));	// put method into hashmap
+				} else {
+					_asm.add(new Call(_asm.getSize(), ((MethodDecl) ((QualRef) stmt.methodRef).id.declaration).methodAddress));
+				}
+			}
+		} else if (stmt.methodRef instanceof IdRef && ((MethodDecl) stmt.methodRef.declaration).isStatic) {
+			// Implicit "this" case!
+			if (((MethodDecl) ((IdRef) stmt.methodRef).id.declaration).methodAddress == -1) {
+				int callIdx = _asm.add(new Call(0));	// dummy call for instruction reference
+				methodPatching.put(callIdx, ((MethodDecl) ((IdRef) stmt.methodRef).id.declaration));	// put method into hashmap
+			} else {
+				_asm.add(new Call(_asm.getSize(), ((MethodDecl) ((IdRef) stmt.methodRef).id.declaration).methodAddress));
+			}
 		}
 		return null;
 	}
 
-	public Object visitReturnStmt(ReturnStmt stmt, Object arg){
-		if (stmt.returnExpr != null)
-			stmt.returnExpr.visit(this, arg);
+	public Object visitReturnStmt(ReturnStmt stmt, Object arg) {
+		if (stmt.returnExpr != null) {
+			stmt.returnExpr.visit(this, arg);    // Push return to RAX
+		}
 		return null;
 	}
 
 	public Object visitIfStmt(IfStmt stmt, Object arg){
-		stmt.cond.visit(this, arg);
+		stmt.cond.visit(this, arg);	// Flag is currently set in RAX (Reg8.AL).
+
 		stmt.thenStmt.visit(this, arg);
 		if (stmt.elseStmt != null)
 			stmt.elseStmt.visit(this, arg);
@@ -260,14 +382,48 @@ public class CodeGenerator implements Visitor<Object, Object> {
 
 	public Object visitUnaryExpr(UnaryExpr expr, Object arg){
 		expr.operator.visit(this, arg);
-		expr.expr.visit(this, arg);
+		expr.expr.visit(this, Reg64.RAX);
+		switch (expr.operator.spelling) {
+			case "-":
+				_asm.add(new Neg(new R(Reg64.RAX, true)));
+				break;
+			case "!":
+				_asm.add(new Not(new R(Reg64.RAX, true)));
+				break;
+		}
 		return null;
 	}
 
 	public Object visitBinaryExpr(BinaryExpr expr, Object arg){
-		expr.operator.visit(this, arg);
-		expr.left.visit(this, arg);
-		expr.right.visit(this, arg);
+		expr.operator.visit(this, arg);	// TODO: remove later, not necessary
+		expr.right.visit(this, arg);	// result pushed to RAX
+		_asm.add(new Mov_rmr(new R(Reg64.RCX, Reg64.RAX)));	// move right expression into RCX
+		expr.left.visit(this, arg);	// result pushed to RAX
+
+		switch (expr.operator.spelling) {
+			case "+":
+				_asm.add(new Add(new R(Reg64.RAX, Reg64.RCX)));
+				break;
+			case "-":
+				_asm.add(new Sub(new R(Reg64.RAX, Reg64.RCX)));
+				break;
+			case "*":
+				_asm.add(new Imul(new R(Reg64.RAX, Reg64.RCX)));
+				break;
+			case "/":
+				_asm.add(new Idiv(new R(Reg64.RAX, Reg64.RCX)));
+				break;
+			case "||":
+				_asm.add(new Or(new R(Reg64.RAX, Reg64.RCX)));
+				break;
+			case "&&":
+				_asm.add(new And(new R(Reg64.RAX, Reg64.RCX)));
+				break;
+			default:	// Comparison
+				_asm.add(new Cmp(new R(Reg64.RAX, Reg64.RCX)));
+				_asm.add(new Xor(new R(Reg64.RAX, Reg64.RAX)));	// Clear RAX to set AL
+				_asm.add(new SetCond(Condition.getCond(expr.operator), Reg8.AL));
+		}
 		return null;
 	}
 
@@ -277,16 +433,41 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	}
 
 	public Object visitIxExpr(IxExpr ie, Object arg){
-		ie.ref.visit(this, arg);
-		ie.ixExpr.visit(this, arg);
+		ie.ixExpr.visit(this, arg);	// pushes value to RAX
+		_asm.add(new Imul(Reg64.RDI, new R(Reg64.RAX, true), 8));	// move index * 8 into RDI
+		ie.ref.visit(this, arg); // pushes addr of ref to RAX
+		_asm.add(new Add(new R(Reg64.RAX, Reg64.RDI)));	// rax = addr + index * 8
+		_asm.add(new Mov_rrm(new R(Reg64.RAX, 0, Reg64.RAX)));	// rax = [rax]
 		return null;
 	}
 
 	public Object visitCallExpr(CallExpr expr, Object arg){
-		expr.functionRef.visit(this, arg);
 		ExprList al = expr.argList;
-		for (Expression e: al) {
-			e.visit(this, arg);
+		for (int i=al.size()-1; i >= 0; i--) {
+			al.get(i).visit(this, arg);	// Push arguments to RAX
+			_asm.add(new Push(Reg64.RAX));
+		}
+
+		// Call method
+		if (expr.functionRef instanceof QualRef) {
+			if (((MethodDecl) ((QualRef) expr.functionRef).id.declaration).methodAddress == -1) {
+				int callIdx = _asm.add(new Call(0));	// dummy call for instruction reference
+				methodPatching.put(callIdx, ((MethodDecl) ((QualRef) expr.functionRef).id.declaration));	// put method into hashmap
+			} else {
+				_asm.add(new Call(_asm.getSize(), ((MethodDecl) ((QualRef) expr.functionRef).id.declaration).methodAddress));
+			}
+		} else if (expr.functionRef instanceof IdRef && ((MethodDecl) expr.functionRef.declaration).isStatic) {
+			// Implicit "this" case!
+			if (((MethodDecl) ((IdRef) expr.functionRef).id.declaration).methodAddress == -1) {
+				int callIdx = _asm.add(new Call(0));	// dummy call for instruction reference
+				methodPatching.put(callIdx, ((MethodDecl) ((IdRef) expr.functionRef).id.declaration));	// put method into hashmap
+			} else {
+				_asm.add(new Call(_asm.getSize(), ((MethodDecl) ((IdRef) expr.functionRef).id.declaration).methodAddress));
+			}
+		}
+
+		for (int i=0; i< al.size(); i++) {
+			_asm.add(new Pop(Reg64.R15));
 		}
 		return null;
 	}
@@ -299,11 +480,17 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	public Object visitNewArrayExpr(NewArrayExpr expr, Object arg){
 		expr.eltType.visit(this, arg);
 		expr.sizeExpr.visit(this, arg);
+
+		// Need more nuance. How do we use the size?
+		makeMalloc();
 		return null;
 	}
 
 	public Object visitNewObjectExpr(NewObjectExpr expr, Object arg){
 		expr.classtype.visit(this, arg);
+
+		// Need more nuance. How do we use the size?
+		makeMalloc();
 		return null;
 	}
 
@@ -315,6 +502,7 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	///////////////////////////////////////////////////////////////////////////////
 
 	public Object visitThisRef(ThisRef ref, Object arg) {
+		// push associated class for ref?
 		return null;
 	}
 
@@ -324,8 +512,21 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	}
 
 	public Object visitQRef(QualRef qr, Object arg) {
-		qr.id.visit(this, arg);
-		qr.ref.visit(this, arg);
+		qr.ref.visit(this, arg);	// push the address of the last reference into RAX
+
+		// Associated Declaration must be a MemberDecl!
+		if (qr.id.declaration instanceof FieldDecl) {
+			if (((FieldDecl) qr.id.declaration).isStatic) {
+				_asm.add(new Add(new R(Reg64.RAX, true), ((FieldDecl) qr.id.declaration).offset));
+			} else {
+				// add offset to RAX (instanceAddr + offset) (HEAP)
+				_asm.add(new Add(new R(Reg64.RAX, true), ((FieldDecl) qr.id.declaration).offset));
+			}
+
+		} else if (qr.id.declaration instanceof MethodDecl) {
+			// Move the
+		}
+//		qr.id.visit(this, arg);
 		return null;
 	}
 
@@ -336,6 +537,13 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	///////////////////////////////////////////////////////////////////////////////
 
 	public Object visitIdentifier(Identifier id, Object arg){
+		if (id.declaration instanceof LocalDecl) {
+			_asm.add(new Mov_rrm(new R(Reg64.RBP, ((LocalDecl) id.declaration).stackOffset, Reg64.RAX)));
+		} else if (id.declaration instanceof FieldDecl) {
+			_asm.add(new Mov_rrm(new R(Reg64.RBP, ((FieldDecl) id.declaration).offset, Reg64.RAX)));	// assume instance address in RAX
+		} else if (id.declaration instanceof ClassDecl) {
+			// What to do here?
+		}
 		return null;
 	}
 
@@ -344,20 +552,27 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	}
 
 	public Object visitIntLiteral(IntLiteral num, Object arg){
+		_asm.add( new Mov_ri64(Reg64.RAX, Integer.parseInt(num.spelling)));
 		return null;
 	}
 
 	public Object visitBooleanLiteral(BooleanLiteral bool, Object arg){
+		if (bool.spelling.equals("true")) {
+			_asm.add( new Mov_ri64(Reg64.RAX, 1));
+		} else { // false
+			_asm.add( new Mov_ri64(Reg64.RAX, 0));
+		}
 		return null;
 	}
 
 	public Object visitNullLiteral(NullLiteral nl, Object arg) {
+		_asm.add( new Mov_ri64(Reg64.RAX, 0));
 		return null;
 	}
 
 	public void makeElf(String fname) {
 		ELFMaker elf = new ELFMaker(_errors, _asm.getSize(), 8); // bss ignored until PA5, set to 8
-		elf.outputELF(fname, _asm.getBytes(), ??); // TODO: set the location of the main method
+		elf.outputELF(fname, _asm.getBytes(), mainAddress); // TODO: set the location of the main method
 	}
 	
 	private int makeMalloc() {
@@ -378,6 +593,14 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	
 	private int makePrintln() {
 		// TODO: how can we generate the assembly to println?
-		return -1;
+		int idxStart = _asm.add( new Mov_rmi(new R(Reg64.RAX,true),0x01) );
+		_asm.add(new Mov_rmi(new R(Reg64.RDI, true), 0x01));
+		_asm.add( new Mov_rmi(	new R(Reg64.RDX, true), 0x4)	);	// size
+
+		_asm.add( new Syscall() );
+
+		// pointer to newly allocated memory is in RAX
+		// return the index of the first instruction in this method, if needed
+		return idxStart;
 	}
 }

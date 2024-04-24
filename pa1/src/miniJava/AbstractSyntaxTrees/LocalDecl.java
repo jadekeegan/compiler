@@ -8,7 +8,8 @@ package miniJava.AbstractSyntaxTrees;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class LocalDecl extends Declaration {
-	
+	public int stackOffset;
+
 	public LocalDecl(String name, TypeDenoter t, SourcePosition posn){
 		super(name,t,posn);
 	}

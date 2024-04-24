@@ -23,4 +23,5 @@ public class ClassDecl extends Declaration {
       
   public FieldDeclList fieldDeclList;
   public MethodDeclList methodDeclList;
+  public int numBytes = 0; // size of class
 }
