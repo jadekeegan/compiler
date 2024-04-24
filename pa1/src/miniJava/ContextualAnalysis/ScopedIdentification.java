@@ -63,7 +63,9 @@ public class ScopedIdentification {
             }
 
             // if top IDTable contains ID already, throw IDError
-            if (top.containsKey(id)) {
+            if (top.containsKey(id)
+                    || (top.containsKey(id) && (top.get(id) instanceof MemberDecl && decl instanceof MemberDecl
+                    && ((MemberDecl) top.get(id)).associatedClass.equals(((MemberDecl) decl).associatedClass)))) {
                 this.reportIdentificationError(decl.posn,
                         "Variable '" + id + "' is already defined in scope");
             } else {
