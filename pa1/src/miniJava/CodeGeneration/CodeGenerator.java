@@ -191,10 +191,6 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		_asm.add(new Mov_rmr(new R(Reg64.RSP, Reg64.RBP)));
 		_asm.add(new Pop(Reg64.RBP));
 
-		// Pop Arguments from the Stack
-//		int RSPoffset = md.parameterDeclList.size() * 8;
-//		_asm.add(new Add(new R(Reg64.RSP, true), RSPoffset));
-
 		if (md.isMain) {
 			_asm.add( new Mov_rmi(new R(Reg64.RAX,true),0x3C) ); // exit
 			_asm.add(new Xor(new R(Reg64.RDI,Reg64.RDI)) ); // addr=0
@@ -277,30 +273,12 @@ public class CodeGenerator implements Visitor<Object, Object> {
 			if (stmt.ref.declaration instanceof LocalDecl) {
 				_asm.add(new Mov_rmr(new R(Reg64.RBP, ((LocalDecl) stmt.ref.declaration).stackOffset, Reg64.RAX)));
 			}
-//			} else if (stmt.ref.declaration instanceof FieldDecl) {
-//				FieldDecl fd = (FieldDecl) stmt.ref.declaration;
-//				if (fd.isStatic) {	// Access from Stack
-//					_asm.add(	new Mov_rmr(new R(Reg64.RBP, fd.offset, Reg64.RAX)));
-//				} else {	// Access Heap
-//					if (arg instanceof VarDecl) {
-//						// Move heap addr to RDX
-//						_asm.add( new Mov_rrm(new R(Reg64.RBP, ((VarDecl) arg).stackOffset, Reg64.RDX)));
-//						// Add field offset to heap addr
-//						_asm.add(	new Add(new R(Reg64.RDX, fd.offset)));
-//						// Update Field
-//						_asm.add(	new Mov_rmr(new R(Reg64.RDX, Reg64.RAX)));
-//					}
-//				}
-//			}
 		} else if (stmt.ref instanceof QualRef) {
-			stmt.ref.visit(this, arg);	// Push address of var associated with ref to RAX
-			_asm.add(new Mov_rmr(new R(Reg64.RCX, Reg64.RAX)));	// Move destination address to RDX
-			stmt.val.visit(this, arg);	// Push value to be assigned to RAX
+			stmt.val.visit(this, arg);
+			_asm.add(new Mov_rmr(new R(Reg64.RDI, Reg64.RAX))); // move ref ptr to RDI
 
-			if (stmt.val instanceof NewObjectExpr || stmt.val instanceof NewArrayExpr) {
-				_asm.add(new Push(Reg64.RAX));
-			}
-			_asm.add(new Mov_rrm(new R(Reg64.RCX, 0, Reg64.RAX)));	// stmt.val to address at RAX
+			stmt.ref.visit(this, arg);
+			_asm.add(new Mov_rmr(new R(Reg64.RAX, 0, Reg64.RDI)));	// move rdi into RAX
 		}
 
 		return null;
@@ -359,17 +337,36 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	}
 
 	public Object visitIfStmt(IfStmt stmt, Object arg){
-		stmt.cond.visit(this, arg);	// Flag is currently set in RAX (Reg8.AL).
+		stmt.cond.visit(this, arg);	// push 0 or 1 to RAX
 
-		stmt.thenStmt.visit(this, arg);
-		if (stmt.elseStmt != null)
-			stmt.elseStmt.visit(this, arg);
+		_asm.add(new Cmp(new R(Reg64.RAX, true), 0));	// cmp rax, 0
+		int patchIfJump = _asm.add(new CondJmp(Condition.E, 0));	// je else
+		stmt.thenStmt.visit(this, arg);	// execute then statement
+
+		if (stmt.elseStmt != null) {
+			int patchJumpToEnd = _asm.add(new Jmp(0));	// jmp afterElse
+			_asm.patch(patchIfJump, new CondJmp(Condition.E, _asm.get(patchIfJump).startAddress, _asm.getSize(), false)); // patch if jump
+
+			stmt.elseStmt.visit(this, arg);	// execute else statement
+			_asm.patch(patchJumpToEnd, new Jmp(_asm.get(patchJumpToEnd).startAddress, _asm.getSize(), false));	// j end
+		} else {
+			_asm.patch(patchIfJump, new CondJmp(Condition.E, _asm.get(patchIfJump).startAddress, _asm.getSize(),  false)); // patch if jump
+		}
 		return null;
 	}
 
 	public Object visitWhileStmt(WhileStmt stmt, Object arg){
-		stmt.cond.visit(this, arg);
+		int whileStart = _asm.getSize();	// set start of comparison
+		stmt.cond.visit(this, arg);		// push result of comparison to RAX
+
+		_asm.add(new Cmp(new R(Reg64.RAX, true), 0));	// cmp rax, 0
+
+		int patchJumpToEnd = _asm.add(new CondJmp(Condition.E, 0));	// je end
+
 		stmt.body.visit(this, arg);
+
+		_asm.add(new Jmp(_asm.getSize(), whileStart, false));
+		_asm.patch(patchJumpToEnd, new CondJmp(Condition.E, _asm.get(patchJumpToEnd).startAddress, _asm.getSize(), false));
 		return null;
 	}
 
@@ -395,10 +392,13 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	}
 
 	public Object visitBinaryExpr(BinaryExpr expr, Object arg){
-		expr.operator.visit(this, arg);	// TODO: remove later, not necessary
 		expr.right.visit(this, arg);	// result pushed to RAX
-		_asm.add(new Mov_rmr(new R(Reg64.RCX, Reg64.RAX)));	// move right expression into RCX
+		_asm.add(new Push(Reg64.RAX));
 		expr.left.visit(this, arg);	// result pushed to RAX
+		_asm.add(new Push(Reg64.RAX));
+
+		_asm.add(new Pop(Reg64.RAX));
+		_asm.add(new Pop(Reg64.RCX));
 
 		switch (expr.operator.spelling) {
 			case "+":
@@ -408,10 +408,11 @@ public class CodeGenerator implements Visitor<Object, Object> {
 				_asm.add(new Sub(new R(Reg64.RAX, Reg64.RCX)));
 				break;
 			case "*":
-				_asm.add(new Imul(new R(Reg64.RAX, Reg64.RCX)));
+				_asm.add(new Imul(Reg64.RAX, new R(Reg64.RCX, true)));
 				break;
 			case "/":
-				_asm.add(new Idiv(new R(Reg64.RAX, Reg64.RCX)));
+				_asm.add(new Xor(new R(Reg64.RDX, Reg64.RDX)));
+				_asm.add(new Idiv(new R(Reg64.RCX, Reg64.RAX)));
 				break;
 			case "||":
 				_asm.add(new Or(new R(Reg64.RAX, Reg64.RCX)));
@@ -421,7 +422,7 @@ public class CodeGenerator implements Visitor<Object, Object> {
 				break;
 			default:	// Comparison
 				_asm.add(new Cmp(new R(Reg64.RAX, Reg64.RCX)));
-				_asm.add(new Xor(new R(Reg64.RAX, Reg64.RAX)));	// Clear RAX to set AL
+				// do I need to clear RAX??
 				_asm.add(new SetCond(Condition.getCond(expr.operator), Reg8.AL));
 		}
 		return null;
@@ -429,6 +430,9 @@ public class CodeGenerator implements Visitor<Object, Object> {
 
 	public Object visitRefExpr(RefExpr expr, Object arg){
 		expr.ref.visit(this, arg);
+		if (expr.ref instanceof QualRef) {
+			_asm.add(new Mov_rrm(new R(Reg64.RAX, 0, Reg64.RAX)));
+		}
 		return null;
 	}
 
@@ -514,15 +518,13 @@ public class CodeGenerator implements Visitor<Object, Object> {
 	public Object visitQRef(QualRef qr, Object arg) {
 		qr.ref.visit(this, arg);	// push the address of the last reference into RAX
 
+		if (qr.ref instanceof QualRef) {
+			_asm.add(new Mov_rrm(new R(Reg64.RAX, 0, Reg64.RAX)));
+		}
+
 		// Associated Declaration must be a MemberDecl!
 		if (qr.id.declaration instanceof FieldDecl) {
-			if (((FieldDecl) qr.id.declaration).isStatic) {
-				_asm.add(new Add(new R(Reg64.RAX, true), ((FieldDecl) qr.id.declaration).offset));
-			} else {
-				// add offset to RAX (instanceAddr + offset) (HEAP)
-				_asm.add(new Add(new R(Reg64.RAX, true), ((FieldDecl) qr.id.declaration).offset));
-			}
-
+			_asm.add(new Add(new R(Reg64.RAX, true), ((FieldDecl) qr.id.declaration).offset));
 		} else if (qr.id.declaration instanceof MethodDecl) {
 			// Move the
 		}
@@ -595,7 +597,7 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		// TODO: how can we generate the assembly to println?
 		int idxStart = _asm.add( new Mov_rmi(new R(Reg64.RAX,true),0x01) );
 		_asm.add(new Mov_rmi(new R(Reg64.RDI, true), 0x01));
-		_asm.add( new Mov_rmi(	new R(Reg64.RDX, true), 0x4)	);	// size
+		_asm.add( new Mov_rmi(	new R(Reg64.RDX, true), 0x1)	);	// size
 
 		_asm.add( new Syscall() );
 

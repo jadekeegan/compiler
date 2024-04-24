@@ -607,6 +607,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
     public Object visitQRef(QualRef qr, Object arg) {
         MemberDecl context = (MemberDecl) arg;
+        MemberDecl inClassContext = (MemberDecl) arg;
 
         // Determine LHS Context
         Stack<Reference> refStack = new Stack<>();
@@ -654,7 +655,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
                     // Find the id in the class
                     // Set id declaration to found declaration
-                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
+                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
                     // Should only be able to reference objects of type class
@@ -668,7 +669,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
                 // Find the id in the class
                 // Set id declaration to found declaration
-                currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
+                currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext);
                 currQRef.declaration = currQRef.id.declaration;
 
                 // Handles trying to access class with a static ref in itself
@@ -676,17 +677,17 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                     this.reportIdentificationError(currQRef.posn,
                             "Cannot access non-static member " + currQRef.id.spelling + " in static method " + context.name);
                 }
-            } else if (decl instanceof MemberDecl) {
-                MemberDecl md = (MemberDecl) decl;
+            } else if (decl instanceof FieldDecl) {
+                FieldDecl fd = (FieldDecl) decl;
 
-                if (md.type.typeKind == TypeKind.CLASS) {
+                if (fd.type.typeKind == TypeKind.CLASS) {
                     // get associated class of MemberDecl
-                    ClassType ct = (ClassType) md.type;
+                    ClassType ct = (ClassType) fd.type;
                     ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
 
                     // Find the id in the class
                     // Set id declaration to found declaration
-                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, context);
+                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
                     // Should only be able to reference objects of type class
