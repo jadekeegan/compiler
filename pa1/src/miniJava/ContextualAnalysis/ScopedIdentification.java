@@ -63,9 +63,16 @@ public class ScopedIdentification {
             }
 
             // if top IDTable contains ID already, throw IDError
-            if (top.containsKey(id)
-                    || (top.containsKey(id) && (top.get(id) instanceof MemberDecl && decl instanceof MemberDecl
-                    && ((MemberDecl) top.get(id)).associatedClass.equals(((MemberDecl) decl).associatedClass)))) {
+            if (top.containsKey(id)) {
+                if (top.get(id) instanceof MemberDecl && decl instanceof MemberDecl) {
+                    String existingIdClass = ((MemberDecl) top.get(id)).associatedClass.name;
+                    String newIdClass = ((MemberDecl) decl).associatedClass.name;
+
+                    if (!existingIdClass.equals(newIdClass)) {
+                        top.put(id, decl);
+                        return;
+                    }
+                }
                 this.reportIdentificationError(decl.posn,
                         "Variable '" + id + "' is already defined in scope");
             } else {
