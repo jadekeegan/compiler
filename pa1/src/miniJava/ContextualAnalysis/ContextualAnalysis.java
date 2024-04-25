@@ -58,14 +58,14 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         for (ClassDecl c: cl) {
             // Add Fields for Class to Level 1 Scope
             for (FieldDecl f: c.fieldDeclList) {
-                si.addDeclaration(f.name, f);
                 f.associatedClass = c;
+                si.addDeclaration(f.name, f);
             }
 
             // Add Methods for Class to Level 1 Scope
             for (MethodDecl m: c.methodDeclList) {
-                si.addDeclaration(m.name, m);
                 m.associatedClass = c;
+                si.addDeclaration(m.name, m);
             }
         }
 
