@@ -608,6 +608,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     public Object visitQRef(QualRef qr, Object arg) {
         MemberDecl context = (MemberDecl) arg;
         MemberDecl inClassContext = (MemberDecl) arg;
+        ClassDecl lastClass = null;
 
         // Determine LHS Context
         Stack<Reference> refStack = new Stack<>();
@@ -633,7 +634,8 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                 currRef.declaration = decl;
             } else if (currRef instanceof QualRef) {
                 // Visit to ensure id has an associated declaration!
-                ((QualRef) currRef).id.visit(this, context);
+                ((QualRef) currRef).id.declaration = si.findDeclarationInClass(((QualRef) currRef).id, lastClass, inClassContext);
+//                ((QualRef) currRef).id.visit(this, context);
                 decl = ((QualRef) currRef).id.declaration;
                 currRef.declaration = decl;
             }
@@ -652,6 +654,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                     // get associated class of LocalDecl
                     ClassType ct = (ClassType) ld.type;
                     ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+                    lastClass = cd;
 
                     // Find the id in the class
                     // Set id declaration to found declaration
@@ -666,6 +669,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             } else if (decl instanceof ClassDecl) {
                 // Handling for A.x where A is a class
                 ClassDecl cd = (ClassDecl) decl;
+                lastClass = cd;
 
                 // Find the id in the class
                 // Set id declaration to found declaration
@@ -684,6 +688,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                     // get associated class of MemberDecl
                     ClassType ct = (ClassType) fd.type;
                     ClassDecl cd = (ClassDecl) si.findDeclaration(ct.className, context);
+                    lastClass = cd;
 
                     // Find the id in the class
                     // Set id declaration to found declaration

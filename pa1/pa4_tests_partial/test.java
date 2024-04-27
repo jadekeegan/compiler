@@ -1,36 +1,13 @@
 /**
  * COMP 520
- * Object creation and update
+ * Method invocation and recursion
  */
 class MainClass {
+    public static int x;
+    public static int y;
     public static void main (String [] args) {
-
-        FirstClass f = new FirstClass ();
-        f.s = new SecondClass ();
-
-        // write and then read;
-        f.n = 5;
-        f.s.n = 1 + 48;
-
-        int tstvar = f.n + f.s.n;
-
-        System.out.println(tstvar);
+        x = 3;
+        System.out.println(3 + 48);
     }
 }
-
-class FirstClass
-{
-    int n;
-    SecondClass s;
-
-}
-
-class SecondClass
-{
-    int n;
-    FirstClass f;
-
-}
-
-
 
