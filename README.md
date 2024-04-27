@@ -6,7 +6,7 @@ The guide below describes how various parts of this compiler were handled.
 I used recursive descent in my compiler. Most characters had their own token type, but I did group Binary Operators (excluding `-` as it is also a Unary Operator), Visibility (`public`, `private`), and Boolean Literals (`true`, `false`). I also had a token for empty brackets (`[]`) separate from a left square bracket and a right square bracket to make array declaration simpler.
 
 ## AST Generation
-Please see (ASTChanges.txt)[https://github.com/jadekeegan/compiler/blob/df008d63ea4a7d31f9c5ae6de2e34fbddf81aaf1/pa1/src/miniJava/ContextualAnalysis/ASTChanges.txt] for other AST modifications.
+Please see [ASTChanges.txt](https://github.com/jadekeegan/compiler/blob/df008d63ea4a7d31f9c5ae6de2e34fbddf81aaf1/pa1/src/miniJava/ContextualAnalysis/ASTChanges.txt) for other AST modifications.
 
 Aside from the PA3 changes, in PA4 I also decorated declarations in my AST with offsets and other fields to help with calculating/assigning offsets.
 
