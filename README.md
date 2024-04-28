@@ -26,4 +26,4 @@ The main optimization I did during was code generation was reducing the number o
 2. Reduced the number of pushes/pops in my compiler. (2pts?)
 3. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
 4. Implement method overloading. See the `/tests` directory for the tests. (2pts)
-5. Report line and column numbers for error reporting. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
+5. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
