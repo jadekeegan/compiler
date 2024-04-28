@@ -29,7 +29,7 @@ I also created an "Optimization" class that is used after the program has been v
 4. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
 5. Implement method overloading. See the `/tests` directory for the tests. (2pts)
 6. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
-7. Reduced the number of redudant instrutions in my compiler using the aforementioned `Optimization` class.(1-2pts?)
+7. Reduced the number of redudant instrutions in my compiler using the aforementioned `Optimization` class. (1-2pts?)
    * Example of Optimized Assembly (See `/tests/optimize.java` for MJ):
      | Optimized Assembly | Unoptimized Assembly |
      | -------- | ------- |
