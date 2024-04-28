@@ -19,9 +19,13 @@ The main optimization I did during was code generation was reducing the number o
 ## Developer Concerns
 - I made everything, including integers, 64-bit, but I didn't do any extra handling for math expressions.
 - I did not modify `makeMalloc()`, so it allocates a full page rather than just the size of the class. This would be a quick fix though, as I do still calculate the size of my classes regardless. I would just need to move that size value into RSI.
+- There are definitely cases for identification where I allowed things to just raise a Java NullPointerException on failing test cases where a declaration is not found, particularly because I don't immediately stop identification when I find an error.
 
 # Extra Credit
 1. Used a single traversal for Identification and Type-Checking. (1pt)
 2. Reduced the number of pushes/pops in my compiler. (2pts?)
 3. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
 4. Implement method overloading. See the `/tests` directory for the tests. (2pts)
+5. [Stretch Goal] Add some warnings/flags to the compiler. These are not actually errors that will cause compilation failure. Rather, they indicate potential logical error.
+  a. Flag `while` statements whose condition always evaluates to `true` (infinite while loop warning).
+  b. Flag `if` statements whose condition always evaluates to `true` (unnecessary `if` warning).
