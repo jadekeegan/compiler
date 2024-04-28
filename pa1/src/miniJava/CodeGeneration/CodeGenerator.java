@@ -6,6 +6,7 @@ import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.CodeGeneration.x64.*;
 import miniJava.CodeGeneration.x64.ISA.*;
+import miniJava.Optimization.Optimization;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 import java.lang.reflect.Method;
@@ -68,9 +69,10 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		//  Note the false means that it is a 32-bit immediate for jumping (an int)
 		//     _asm.patch( someJump.listIdx, new Jmp(asm.size(), someJump.startAddress, false) );
 
-		_asm.markOutputStart();
 		prog.visit(this,null);
-		_asm.outputFromMark();
+
+		Optimization optimizer = new Optimization(_asm);
+//		this._asm = optimizer.optimize();
 
 		// Output the file "a.out" if no errors
 		if( !_errors.hasErrors() )
@@ -276,11 +278,11 @@ public class CodeGenerator implements Visitor<Object, Object> {
 
 		if (stmt.ref instanceof IdRef) {
 			stmt.val.visit(this, true);	// Push value to be assigned to RAX
-			_asm.add(new Mov_rmr(new R(Reg64.RDI, Reg64.RAX))); // move val to RDI
 
 			if (stmt.ref.declaration instanceof LocalDecl) {
 				_asm.add(new Mov_rmr(new R(Reg64.RBP, ((LocalDecl) stmt.ref.declaration).stackOffset, Reg64.RAX)));
 			} else if (stmt.ref.declaration instanceof FieldDecl) {
+				_asm.add(new Mov_rmr(new R(Reg64.RDI, Reg64.RAX))); // move val to RDI
 				if (((FieldDecl) stmt.ref.declaration).isStatic) {	// access globals
 					_asm.add(new Mov_rmr(new R(Reg64.R15, ((FieldDecl) stmt.ref.declaration).offset, Reg64.RDI)));
 				} else {

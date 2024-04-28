@@ -19,6 +19,14 @@ public abstract class Instruction {
 			_size = getBytes().length;
 		return _size;
 	}
+
+	public byte[] getOpCodeBytes() {
+		return opcodeBytes.toByteArray();
+	}
+
+	public byte[] getImmBytes() {
+		return immBytes.toByteArray();
+	}
 	
 	public byte[] getBytes() {
 		ByteArrayOutputStream b = new ByteArrayOutputStream();

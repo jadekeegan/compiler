@@ -9,7 +9,11 @@ public class InstructionList {
 	private int _currentSize = 0;
 	private int _currentIdx = 0;
 	private int _markStart = -1;
-	
+
+	public List<Instruction> getInstructions() {
+		return _instructions;
+	}
+
 	public int getSize() {
 		return _currentSize;
 	}
@@ -21,6 +25,13 @@ public class InstructionList {
 		_currentIdx++;
 		_currentSize += ins.size();
 		return ins.listIdx;
+	}
+
+	public int pop(Instruction ins) {
+		_currentSize -= ins.size();
+		_currentIdx--;
+		_instructions.remove(ins);
+		return _currentIdx - 1;
 	}
 	
 	public Instruction get(int idx) {
