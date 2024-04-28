@@ -31,5 +31,7 @@ I also created an "Optimization" class that is used after the program has been v
 6. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
 7. Reduced the number of redudant instrutions in my compiler using the aforementioned `Optimization` class.(1-2pts?)
    * Example of Optimized Assembly (See `/tests/optimize.java` for MJ):
+     
 | Optimized Assembly | Unoptimized Assembly |
+| -------- | ------- |
 | <img width="374" alt="image" src="https://github.com/jadekeegan/compiler/assets/97476936/306daf1b-4abf-4b1a-bd3f-0961e253a6a6"> | <img width="350" alt="image" src="https://github.com/jadekeegan/compiler/assets/97476936/777b2f7d-7976-4ec8-ba18-b208a24e498d"> |
