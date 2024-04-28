@@ -6,6 +6,7 @@ import miniJava.AbstractSyntaxTrees.*;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 import javax.xml.transform.Source;
+import java.util.ArrayList;
 import java.util.Stack;
 
 public class ContextualAnalysis implements Visitor<Object,Object> {
@@ -289,9 +290,25 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     }
 
     public Object visitCallStmt(CallStmt stmt, Object arg){
-        stmt.methodRef.visit(this, arg);
+        ArrayList<TypeDenoter> argListTypes = new ArrayList<>();
+        for (int i=0; i < stmt.argList.size(); i++) {
+            // Retrieve the type of the element in the argument list at index i
+            TypeDenoter exprType = (TypeDenoter) stmt.argList.get(i).visit(this, arg);
+            argListTypes.add(exprType);
+        }
+
+        if (stmt.methodRef instanceof IdRef) {
+            stmt.methodRef.declaration = si.findMethodDeclaration(((IdRef) stmt.methodRef).id, argListTypes, null);
+            ((IdRef) stmt.methodRef).id.declaration = stmt.methodRef.declaration;
+        } else if (stmt.methodRef instanceof QualRef) {
+            ArrayList<Object> methodArg = new ArrayList<>();
+            methodArg.add(arg);
+            methodArg.add(argListTypes);
+            stmt.methodRef.visit(this, methodArg);
+        }
+
         // Ensure reference is a MethodDecl
-        if (stmt.methodRef.declaration instanceof MethodDecl) {
+        if (stmt.methodRef.declaration != null) {
             MethodDecl md = (MethodDecl) stmt.methodRef.declaration;
 
             ExprList al = stmt.argList;
@@ -318,7 +335,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         } else {
             // Error if attempting to call a reference that isn't a method.
             this.reportIdentificationError(stmt.methodRef.posn,
-                    "Cannot call non-method declaration " + stmt.methodRef.declaration.type.typeKind);
+                    "Cannot call non-method declaration");
         }
 
         return null;
@@ -527,10 +544,26 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     }
 
     public Object visitCallExpr(CallExpr expr, Object arg){
-        expr.functionRef.visit(this, arg);
+        ArrayList<TypeDenoter> argListTypes = new ArrayList<>();
+        for (int i=0; i < expr.argList.size(); i++) {
+            // Retrieve the type of the element in the argument list at index i
+            TypeDenoter exprType = (TypeDenoter) expr.argList.get(i).visit(this, arg);
+            argListTypes.add(exprType);
+        }
+
+        if (expr.functionRef instanceof IdRef) {
+            expr.functionRef.declaration = si.findMethodDeclaration(((IdRef) expr.functionRef).id, argListTypes, null);
+            ((IdRef) expr.functionRef).id.declaration = expr.functionRef.declaration;
+        } else if (expr.functionRef instanceof QualRef) {
+            ArrayList<Object> methodArg = new ArrayList<>();
+            methodArg.add(arg);
+            methodArg.add(argListTypes);
+            expr.functionRef.visit(this, methodArg);
+        }
+
 
         // Ensure reference is a MethodDecl
-        if (expr.functionRef.declaration instanceof MethodDecl) {
+        if (expr.functionRef.declaration != null) {
             MethodDecl md = (MethodDecl) expr.functionRef.declaration;
 
             ExprList al = expr.argList;
@@ -545,7 +578,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
             // Iterate through each parameter in both lists
             for (int i=0; i < md.parameterDeclList.size(); i++) {
                 // Retrieve the type of the element in the argument list at index i
-                TypeDenoter exprType = (TypeDenoter) al.get(i).visit(this, arg);
+                TypeDenoter exprType = argListTypes.get(i);
                 if (!exprType.compareType(md.parameterDeclList.get(i).type)) {
                     // If TypeKind of arglist element at i and paramlist element at i are different, TypeCheckingError.
                     this.reportTypeCheckingError(al.get(i).posn,
@@ -560,7 +593,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
         } else {
             // Error if attempting to call a reference that isn't a method.
             this.reportIdentificationError(expr.functionRef.posn,
-                    "Cannot call non-method declaration " + expr.functionRef.declaration.type.typeKind);
+                    "Cannot call non-method declaration");
         }
 
         return new BaseType(TypeKind.ERROR, expr.posn);
@@ -606,8 +639,16 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
     }
 
     public Object visitQRef(QualRef qr, Object arg) {
-        MemberDecl context = (MemberDecl) arg;
-        MemberDecl inClassContext = (MemberDecl) arg;
+        MemberDecl context;
+        ArrayList<TypeDenoter> argListTypes = null;
+        if (arg instanceof ArrayList) {
+            context = (MemberDecl) ((ArrayList<Object>) arg).get(0);
+            argListTypes = (ArrayList<TypeDenoter>) ((ArrayList<?>) arg).get(1);
+        } else {
+            context = (MemberDecl) arg;
+
+        }
+        MemberDecl inClassContext = context;
         ClassDecl lastClass = null;
 
         // Determine LHS Context
@@ -634,7 +675,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
                 currRef.declaration = decl;
             } else if (currRef instanceof QualRef) {
                 // Visit to ensure id has an associated declaration!
-                ((QualRef) currRef).id.declaration = si.findDeclarationInClass(((QualRef) currRef).id, lastClass, inClassContext);
+                ((QualRef) currRef).id.declaration = si.findDeclarationInClass(((QualRef) currRef).id, lastClass, inClassContext, argListTypes);
 //                ((QualRef) currRef).id.visit(this, context);
                 decl = ((QualRef) currRef).id.declaration;
                 currRef.declaration = decl;
@@ -658,7 +699,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
                     // Find the id in the class
                     // Set id declaration to found declaration
-                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext);
+                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext, argListTypes);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
                     // Should only be able to reference objects of type class
@@ -673,7 +714,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
                 // Find the id in the class
                 // Set id declaration to found declaration
-                currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext);
+                currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext, argListTypes);
                 currQRef.declaration = currQRef.id.declaration;
 
                 // Handles trying to access class with a static ref in itself
@@ -692,7 +733,7 @@ public class ContextualAnalysis implements Visitor<Object,Object> {
 
                     // Find the id in the class
                     // Set id declaration to found declaration
-                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext);
+                    currQRef.id.declaration = si.findDeclarationInClass(currQRef.id, cd, inClassContext, argListTypes);
                     currQRef.declaration = currQRef.id.declaration;
                 } else {
                     // Should only be able to reference objects of type class
