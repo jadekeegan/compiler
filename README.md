@@ -28,7 +28,7 @@ I also created a rudimentary "Optimization" class that is used after the program
 3. Reduced the number of pushes/pops in my compiler by moving to RAX instead of pushing literals to the stack when visited. (2pts?)
 4. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
 5. Implement method overloading. See the `/tests` directory for the tests. (2pts)
-6. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
+6. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt)
 7. Reduced the number of redudant instructions in my compiler using the aforementioned `Optimization` class. (1-2pts?)
    * Example of Optimized Assembly (See `/tests/optimize.java` for MJ):
      | Optimized Assembly | Unoptimized Assembly |
