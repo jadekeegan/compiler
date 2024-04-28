@@ -20,12 +20,12 @@ I also created a rudimentary "Optimization" class that is used after the program
 
 ## Developer Concerns
 - I made everything, including integers, 64-bit, but I didn't do any extra handling for math expressions.
-- I did not modify `makeMalloc()`, so it allocates a full page rather than just the size of the class. This would be a quick fix though, as I do still calculate the size of my classes regardless. I would just need to move that size value into RSI.
 - There are definitely cases for identification where I allowed things to just raise a Java NullPointerException on failing test cases where a declaration is not found, particularly because I don't immediately stop identification when I find an error.
 
 # Extra Credit
 1. Used a single traversal for Identification and Type-Checking. (1pt)
-2. Reduced the number of pushes/pops in my compiler by moving to RAX instead of pushing literals to the stack when visited. (2pts?)
+2. Allocated correct number of bytes for new objects and arrays in the heap. (1pt)
+3. Reduced the number of pushes/pops in my compiler by moving to RAX instead of pushing literals to the stack when visited. (2pts?)
 4. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
 5. Implement method overloading. See the `/tests` directory for the tests. (2pts)
 6. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
