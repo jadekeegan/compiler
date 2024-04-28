@@ -537,9 +537,12 @@ public class CodeGenerator implements Visitor<Object, Object> {
 
 	public Object visitNewArrayExpr(NewArrayExpr expr, Object arg){
 		expr.eltType.visit(this, arg);
-		expr.sizeExpr.visit(this, arg);
+		expr.sizeExpr.visit(this, arg);	// push sizeExpr val to RAX
 
 		// Need more nuance. How do we use the size?
+
+		_asm.add(new Imul(Reg64.RAX, new R(Reg64.RAX, true), 8));
+		_asm.add( new Mov_rrm(	new R(Reg64.RAX, Reg64.RSI)));
 		makeMalloc();
 		return null;
 	}
@@ -548,6 +551,8 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		expr.classtype.visit(this, arg);
 
 		// Need more nuance. How do we use the size?
+		int classSize = ((ClassDecl) expr.classtype.className.declaration).numBytes;
+		_asm.add( new Mov_rmi(	new R(Reg64.RSI,true), classSize) );
 		makeMalloc();
 		return null;
 	}
@@ -643,7 +648,6 @@ public class CodeGenerator implements Visitor<Object, Object> {
 		int idxStart = _asm.add( new Mov_rmi(new R(Reg64.RAX,true),0x09) ); // mmap
 		
 		_asm.add( new Xor(		new R(Reg64.RDI,Reg64.RDI)) 	); // addr=0
-		_asm.add( new Mov_rmi(	new R(Reg64.RSI,true),0x1000) ); // 4kb alloc
 		_asm.add( new Mov_rmi(	new R(Reg64.RDX,true),0x03) 	); // prot read|write
 		_asm.add( new Mov_rmi(	new R(Reg64.R10,true),0x22) 	); // flags= private, anonymous
 		_asm.add( new Mov_rmi(	new R(Reg64.R8, true),-1) 	); // fd= -1
