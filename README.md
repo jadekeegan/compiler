@@ -16,6 +16,8 @@ I used one traversal for Identification and Type Checking in my `ContextualAnaly
 ## Code Generation
 The main optimization I did during was code generation was reducing the number of pushes/pops to the stack by pushing values into RAX rather than pushing them onto the stack (Literals). I only push to the stack when absolutely necessary. Thus, the only values on the stack are old BP addresses, return addresses, static variables, and local variables. The exception, however, is evaluating binary expressions. I was not able to remove pushing and popping from evaluating those due to potential register clobbering.
 
+I also created an "Optimization" class that is used after the program has been visited. It's `optimize()` method goes through the InstructionList and removes common, unnecessary instructions in my code. This includes moving to RAX and immediately pushing the value, as well as instances `push rax` followed by `pop rax` in generated from visiting binary expressions.
+
 ## Developer Concerns
 - I made everything, including integers, 64-bit, but I didn't do any extra handling for math expressions.
 - I did not modify `makeMalloc()`, so it allocates a full page rather than just the size of the class. This would be a quick fix though, as I do still calculate the size of my classes regardless. I would just need to move that size value into RSI.
@@ -23,7 +25,13 @@ The main optimization I did during was code generation was reducing the number o
 
 # Extra Credit
 1. Used a single traversal for Identification and Type-Checking. (1pt)
-2. Reduced the number of pushes/pops in my compiler. (2pts?)
-3. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
-4. Implement method overloading. See the `/tests` directory for the tests. (2pts)
-5. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
+2. Reduced the number of pushes/pops in my compiler by moving to RAX instead of pushing literals to the stack when visited. (2pts?)
+4. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
+5. Implement method overloading. See the `/tests` directory for the tests. (2pts)
+6. Report line and column numbers for errors. See the `/tests` directory for examples for parsing and contextual analysis error reporting. (1pt?)
+7. Reduced the number of redudant instrutions in my compiler using the aforementioned `Optimization` class.(1-2pts?)
+   * Example of Optimized Assembly (See `/tests/optimize.java` for MJ):
+   * Optimized Assembly: <img width="374" alt="image" src="https://github.com/jadekeegan/compiler/assets/97476936/306daf1b-4abf-4b1a-bd3f-0961e253a6a6">
+   * Unoptimized Assembly: <img width="350" alt="image" src="https://github.com/jadekeegan/compiler/assets/97476936/777b2f7d-7976-4ec8-ba18-b208a24e498d">
+
+
