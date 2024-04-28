@@ -1,6 +1,6 @@
 # COMP 520 Compiler Guide
 
-The guide below describes how various parts of this compiler were handled.
+The guide below describes how various parts of this compiler were handled. Also, please be sure to switch to the PA5 branch to see the full compiler inside the repository!
 
 ## Syntactic Analysis
 I used recursive descent in my compiler. Most characters had their own token type, but I did group Binary Operators (excluding `-` as it is also a Unary Operator), Visibility (`public`, `private`), and Boolean Literals (`true`, `false`). I also had a token for empty brackets (`[]`) separate from a left square bracket and a right square bracket to make array declaration simpler.
@@ -24,3 +24,4 @@ The main optimization I did during was code generation was reducing the number o
 1. Used a single traversal for Identification and Type-Checking. (1pt)
 2. Reduced the number of pushes/pops in my compiler. (2pts?)
 3. Extended ModRMSIB to use mod=00 and mod=01 properly. This is done through if statements at the bottom of my Make() methods. (1pt)
+4. Implement method overloading. See the `/tests` directory for the tests. (2pts)
