@@ -10,7 +10,7 @@ Please see [ASTChanges.txt](https://github.com/jadekeegan/compiler/blob/df008d63
 
 Aside from the PA3 changes, in PA4 I also decorated declarations in my AST with offsets and other fields to help with calculating/assigning offsets.
 
-## Contextual Analaysis
+## Contextual Analysis
 I used one traversal for Identification and Type Checking in my `ContextualAnalysis` class. I created a separate `ScopedIdentification` class to store my IDTable stack and various operations (such as adding and finding declarations) on it. I also created a separate `IDTable` class as the input into my SI stack, but it has the exact same functionality as a normal HashMap, just specific to the String key and Declaration value.
 
 ## Code Generation
